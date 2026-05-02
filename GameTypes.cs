@@ -35,9 +35,24 @@ public struct Enemy
         Position = position;
         Health = health;
         Speed = speed;
+        Velocity = Vector2.Zero;
     }
 
     public Vector2 Position;
     public int Health;
     public float Speed;
+    public Vector2 Velocity;
+}
+
+public sealed class RoomData
+{
+    public RoomData(Point gridPosition)
+    {
+        GridPosition = gridPosition;
+    }
+
+    public Point GridPosition { get; }
+    public List<RectangleF> Rocks { get; } = [];
+    public List<Enemy> Enemies { get; } = [];
+    public bool Cleared { get; set; }
 }

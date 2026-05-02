@@ -21,6 +21,7 @@ $nugetConfig = Join-Path $PSScriptRoot "NuGet.Config"
 $env:DOTNET_CLI_HOME = $dotnetHome
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+$env:DOTNET_NOLOGO = "1"
 $env:NUGET_PACKAGES = Join-Path $PSScriptRoot ".nuget_packages"
 $env:APPDATA = Join-Path $dotnetHome "AppData\Roaming"
 $env:LOCALAPPDATA = Join-Path $dotnetHome "AppData\Local"
