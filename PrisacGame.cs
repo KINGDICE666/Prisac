@@ -10,9 +10,11 @@ public sealed class PrisacGame : Game
     private const int ScreenWidth = 1920;
     private const int ScreenHeight = 1080;
     private const float PlayerRadius = 28f;
-    private const float PlayerSpeed = 390f;
-    private const float BulletSpeed = 830f;
+    private const float PlayerSpeed = 315f;
+    private const float BulletSpeed = 640f;
     private const float BulletRadius = 8f;
+    private const float ShotCooldown = 0.32f;
+    private const float ShotEffectDuration = 0.13f;
     private const float EnemyRadius = 29f;
     private const float EnemyAcceleration = 7.5f;
     private const float EnemySeparationRadius = 84f;
@@ -33,6 +35,7 @@ public sealed class PrisacGame : Game
 
     private readonly GraphicsDeviceManager graphics;
     private readonly List<Bullet> bullets = [];
+    private readonly List<ShotEffect> shotEffects = [];
     private readonly Dictionary<Point, RoomData> floorRooms = [];
     private readonly Random random = new();
 
@@ -117,6 +120,7 @@ public sealed class PrisacGame : Game
         MovePlayer(keyboard, dt);
         Shoot(keyboard);
         UpdateBullets(dt);
+        UpdateShotEffects(dt);
         UpdateEnemies(dt);
 
         if (currentRoom.Enemies.Count == 0)
@@ -456,6 +460,7 @@ public sealed class PrisacGame : Game
         currentRoom = floorRooms[currentRoomPosition];
         player.Position = playerPosition;
         bullets.Clear();
+        shotEffects.Clear();
     }
 
     private void MovePlayer(KeyboardState keyboard, float dt)
@@ -529,20 +534,59 @@ public sealed class PrisacGame : Game
             return;
         }
 
-        var direction = Vector2.Zero;
-        if (keyboard.IsKeyDown(Keys.Left)) direction.X -= 1f;
-        if (keyboard.IsKeyDown(Keys.Right)) direction.X += 1f;
-        if (keyboard.IsKeyDown(Keys.Up)) direction.Y -= 1f;
-        if (keyboard.IsKeyDown(Keys.Down)) direction.Y += 1f;
+        var direction = GetShootDirection(keyboard);
 
         if (direction == Vector2.Zero)
         {
             return;
         }
 
-        direction.Normalize();
         bullets.Add(new Bullet(player.Position + direction * 40f, direction * BulletSpeed));
-        player.ShotCooldown = 0.18f;
+        shotEffects.Add(new ShotEffect(player.Position + direction * 38f, direction, ShotEffectDuration));
+        player.ShotCooldown = ShotCooldown;
+    }
+
+    private static Vector2 GetShootDirection(KeyboardState keyboard)
+    {
+        if (keyboard.IsKeyDown(Keys.Left))
+        {
+            return new Vector2(-1f, 0f);
+        }
+
+        if (keyboard.IsKeyDown(Keys.Right))
+        {
+            return new Vector2(1f, 0f);
+        }
+
+        if (keyboard.IsKeyDown(Keys.Up))
+        {
+            return new Vector2(0f, -1f);
+        }
+
+        if (keyboard.IsKeyDown(Keys.Down))
+        {
+            return new Vector2(0f, 1f);
+        }
+
+        return Vector2.Zero;
+    }
+
+    private void UpdateShotEffects(float dt)
+    {
+        for (var index = shotEffects.Count - 1; index >= 0; index--)
+        {
+            var effect = shotEffects[index];
+            effect.Timer -= dt;
+
+            if (effect.Timer <= 0f)
+            {
+                shotEffects.RemoveAt(index);
+            }
+            else
+            {
+                shotEffects[index] = effect;
+            }
+        }
     }
 
     private void UpdateBullets(float dt)
@@ -725,9 +769,12 @@ public sealed class PrisacGame : Game
             DrawEnemy(enemy);
         }
 
+        DrawShotEffects();
+
         foreach (var bullet in bullets)
         {
-            FillCircle(bullet.Position, BulletRadius, new Color(207, 232, 243));
+            DrawBulletTrail(bullet);
+            DrawTearBullet(bullet);
         }
 
         var playerColor = new Color(242, 209, 179);
@@ -746,6 +793,55 @@ public sealed class PrisacGame : Game
             FillRect(new RectangleF(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 140));
             DrawBlockText("YOU DIED - PRESS R", new Vector2(590, 500), 7, new Color(241, 228, 208));
         }
+    }
+
+    private void DrawShotEffects()
+    {
+        foreach (var effect in shotEffects)
+        {
+            var fade = MathHelper.Clamp(effect.Timer / ShotEffectDuration, 0f, 1f);
+            var pop = 1f - fade;
+            var center = effect.Position + effect.Direction * (20f * pop);
+            var side = new Vector2(-effect.Direction.Y, effect.Direction.X);
+            var splashAlpha = (int)(170 * fade);
+            var shineAlpha = (int)(210 * fade);
+
+            FillCircle(center - effect.Direction * 8f, 14f * fade, new Color(116, 177, 211, splashAlpha));
+            FillCircle(center, 10f + 7f * fade, new Color(184, 226, 244, splashAlpha));
+            FillCircle(center - effect.Direction * 4f - side * 4f, 4f + 3f * fade, new Color(247, 252, 255, shineAlpha));
+            FillCircle(center - effect.Direction * 18f, 5f * fade, new Color(88, 139, 176, (int)(95 * fade)));
+        }
+    }
+
+    private void DrawBulletTrail(Bullet bullet)
+    {
+        var direction = bullet.Velocity;
+        if (direction.LengthSquared() <= 0f)
+        {
+            return;
+        }
+
+        direction.Normalize();
+        FillCircle(bullet.Position - direction * 18f, BulletRadius * 0.7f, new Color(132, 193, 222, 120));
+        FillCircle(bullet.Position - direction * 34f, BulletRadius * 0.45f, new Color(78, 132, 170, 70));
+    }
+
+    private void DrawTearBullet(Bullet bullet)
+    {
+        var direction = bullet.Velocity;
+        if (direction.LengthSquared() <= 0f)
+        {
+            FillCircle(bullet.Position, BulletRadius, new Color(184, 226, 244));
+            return;
+        }
+
+        direction.Normalize();
+        var side = new Vector2(-direction.Y, direction.X);
+
+        FillCircle(bullet.Position - direction * 5f, BulletRadius * 1.12f, new Color(82, 139, 181));
+        FillCircle(bullet.Position, BulletRadius, new Color(176, 224, 245));
+        FillCircle(bullet.Position + direction * 5f, BulletRadius * 0.72f, new Color(210, 240, 250));
+        FillCircle(bullet.Position - direction * 2f - side * 3f, BulletRadius * 0.28f, new Color(250, 254, 255));
     }
 
     private void DrawFloorTiles()

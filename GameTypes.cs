@@ -28,6 +28,20 @@ public struct Bullet
     public Vector2 Velocity;
 }
 
+public struct ShotEffect
+{
+    public ShotEffect(Vector2 position, Vector2 direction, float timer)
+    {
+        Position = position;
+        Direction = direction;
+        Timer = timer;
+    }
+
+    public Vector2 Position;
+    public Vector2 Direction;
+    public float Timer;
+}
+
 public struct Enemy
 {
     public Enemy(Vector2 position, int health, float speed)
