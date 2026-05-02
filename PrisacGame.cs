@@ -18,6 +18,7 @@ public sealed class PrisacGame : Game
     private const float EnemyRadius = 29f;
     private const float EnemyAcceleration = 7.5f;
     private const float EnemySeparationRadius = 84f;
+    private const float PlayerContactInvulnerability = 0.22f;
     private const int FloorRoomCount = 5;
 
     private static readonly RectangleF Room = new(135, 100, 1650, 880);
@@ -398,7 +399,7 @@ public sealed class PrisacGame : Game
     {
         floorRooms.Clear();
         var start = Point.Zero;
-        floorRooms[start] = new RoomData(start);
+        floorRooms[start] = new RoomData(start, random.Next(6));
         var frontier = new List<Point> { start };
 
         while (floorRooms.Count < FloorRoomCount)
@@ -412,7 +413,7 @@ public sealed class PrisacGame : Game
                 continue;
             }
 
-            floorRooms[next] = new RoomData(next);
+            floorRooms[next] = new RoomData(next, PickTemplateForRoom(next));
             frontier.Add(next);
         }
 
@@ -430,40 +431,163 @@ public sealed class PrisacGame : Game
         roomData.Rocks.Clear();
         roomData.Enemies.Clear();
 
-        var offset = Math.Abs(roomData.GridPosition.X * 37 + roomData.GridPosition.Y * 53);
-        roomData.Rocks.Add(new RectangleF(Room.X + 370 + offset % 130, Room.Y + 305, 116, 116));
-        roomData.Rocks.Add(new RectangleF(Room.Right - 530 - offset % 115, Room.Y + 305 + offset % 84, 116, 116));
-        roomData.Rocks.Add(new RectangleF(Room.Center.X - 58, Room.Y + 520 - offset % 104, 116, 116));
+        var offset = Math.Abs(roomData.GridPosition.X * 37 + roomData.GridPosition.Y * 53 + roomData.TemplateId * 29);
+        var template = roomData.TemplateId;
+        var spawnPoints = ApplyRoomTemplate(roomData, template);
+        RemoveUnsafeRocks(roomData);
 
         if (roomData.GridPosition == Point.Zero)
         {
             return;
         }
 
-        var enemyCount = 2 + Math.Abs(roomData.GridPosition.X + roomData.GridPosition.Y) % 3;
-        var spawnPoints = new[]
-        {
-            new Vector2(Room.X + 270, Room.Y + 190),
-            new Vector2(Room.Right - 270, Room.Y + 190),
-            new Vector2(Room.Center.X, Room.Bottom - 195),
-            new Vector2(Room.Right - 315, Room.Bottom - 220),
-            new Vector2(Room.X + 315, Room.Bottom - 220)
-        };
+        var enemyCount = random.Next(2, 6);
 
         for (var index = 0; index < enemyCount; index++)
         {
-            var point = spawnPoints[(index + offset) % spawnPoints.Length];
-            var type = ChooseEnemyType(roomData, index);
-            var health = type == EnemyType.Spider ? 5 : 3 + index % 2;
-            var speed = type == EnemyType.Spider ? 92 + index * 7 : 62 + index * 10;
+            var point = spawnPoints[(index + random.Next(spawnPoints.Length)) % spawnPoints.Length];
+            var type = ChooseEnemyType();
+            var health = type == EnemyType.Spider ? 5 : random.Next(3, 5);
+            var speed = type == EnemyType.Spider ? random.Next(88, 112) : random.Next(62, 92);
             roomData.Enemies.Add(new Enemy(point, health, speed, type));
         }
     }
 
-    private static EnemyType ChooseEnemyType(RoomData roomData, int enemyIndex)
+    private int PickTemplateForRoom(Point roomPosition)
     {
-        var pattern = Math.Abs(roomData.GridPosition.X * 11 + roomData.GridPosition.Y * 17 + enemyIndex * 5);
-        return pattern % 3 == 0 ? EnemyType.Spider : EnemyType.Fly;
+        var usedNeighborTemplates = new HashSet<int>();
+        foreach (var direction in Directions)
+        {
+            if (floorRooms.TryGetValue(Add(roomPosition, direction), out var neighbor))
+            {
+                usedNeighborTemplates.Add(neighbor.TemplateId);
+            }
+        }
+
+        var choices = Enumerable.Range(0, 6)
+            .Where(template => !usedNeighborTemplates.Contains(template))
+            .ToArray();
+
+        if (choices.Length == 0)
+        {
+            choices = Enumerable.Range(0, 6).ToArray();
+        }
+
+        return choices[random.Next(choices.Length)];
+    }
+
+    private static Vector2[] ApplyRoomTemplate(RoomData roomData, int template)
+    {
+        var tile = 116f;
+        var left = Room.X + 260;
+        var right = Room.Right - 376;
+        var top = Room.Y + 185;
+        var bottom = Room.Bottom - 301;
+        var centerX = Room.Center.X - tile / 2f;
+        var centerY = Room.Center.Y - tile / 2f;
+
+        switch (template)
+        {
+            case 0:
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 340, Room.Center.Y - 250, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 224, Room.Center.Y - 250, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 340, Room.Center.Y + 134, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 224, Room.Center.Y + 134, tile, tile));
+                return
+                [
+                    new Vector2(Room.X + 290, Room.Y + 220),
+                    new Vector2(Room.Right - 290, Room.Y + 220),
+                    new Vector2(Room.X + 290, Room.Bottom - 220),
+                    new Vector2(Room.Right - 290, Room.Bottom - 220)
+                ];
+
+            case 1:
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 340, Room.Y + 250, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 340, Room.Y + 430, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 224, Room.Y + 250, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 224, Room.Y + 430, tile, tile));
+                return
+                [
+                    new Vector2(Room.Center.X, Room.Y + 190),
+                    new Vector2(Room.Center.X, Room.Bottom - 190),
+                    new Vector2(Room.X + 260, Room.Center.Y),
+                    new Vector2(Room.Right - 260, Room.Center.Y)
+                ];
+
+            case 2:
+                roomData.Rocks.Add(new RectangleF(centerX - 250, centerY - 135, tile, tile));
+                roomData.Rocks.Add(new RectangleF(centerX + 134, centerY - 135, tile, tile));
+                roomData.Rocks.Add(new RectangleF(centerX - 250, centerY + 135, tile, tile));
+                roomData.Rocks.Add(new RectangleF(centerX + 134, centerY + 135, tile, tile));
+                return
+                [
+                    new Vector2(Room.X + 300, Room.Y + 210),
+                    new Vector2(Room.Right - 300, Room.Y + 210),
+                    new Vector2(Room.Center.X, Room.Bottom - 190),
+                    new Vector2(Room.X + 330, Room.Bottom - 240),
+                    new Vector2(Room.Right - 330, Room.Bottom - 240)
+                ];
+
+            case 3:
+                roomData.Rocks.Add(new RectangleF(left, top, tile, tile));
+                roomData.Rocks.Add(new RectangleF(left + 210, top + 160, tile, tile));
+                roomData.Rocks.Add(new RectangleF(left + 420, top + 320, tile, tile));
+                roomData.Rocks.Add(new RectangleF(left + 630, top + 480, tile, tile));
+                return
+                [
+                    new Vector2(Room.Right - 300, Room.Y + 200),
+                    new Vector2(Room.X + 300, Room.Bottom - 200),
+                    new Vector2(Room.Center.X, Room.Y + 225),
+                    new Vector2(Room.Center.X, Room.Bottom - 225)
+                ];
+
+            case 4:
+                roomData.Rocks.Add(new RectangleF(left, top, tile, tile));
+                roomData.Rocks.Add(new RectangleF(right, top, tile, tile));
+                roomData.Rocks.Add(new RectangleF(left, bottom, tile, tile));
+                roomData.Rocks.Add(new RectangleF(right, bottom, tile, tile));
+                return
+                [
+                    new Vector2(Room.Center.X - 220, Room.Center.Y),
+                    new Vector2(Room.Center.X + 220, Room.Center.Y),
+                    new Vector2(Room.Center.X, Room.Center.Y - 180),
+                    new Vector2(Room.Center.X, Room.Center.Y + 180)
+                ];
+
+            default:
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 480, Room.Center.Y - 190, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 250, Room.Center.Y - 50, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X - 20, Room.Center.Y + 90, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 210, Room.Center.Y - 50, tile, tile));
+                roomData.Rocks.Add(new RectangleF(Room.Center.X + 440, Room.Center.Y + 90, tile, tile));
+                return
+                [
+                    new Vector2(Room.X + 280, Room.Y + 210),
+                    new Vector2(Room.Right - 280, Room.Y + 210),
+                    new Vector2(Room.X + 280, Room.Bottom - 210),
+                    new Vector2(Room.Right - 280, Room.Bottom - 210),
+                    new Vector2(Room.Center.X, Room.Center.Y)
+                ];
+        }
+    }
+
+    private static void RemoveUnsafeRocks(RoomData roomData)
+    {
+        var safeZones = new[]
+        {
+            new RectangleF(Room.Center.X - 150, Room.Center.Y - 150, 300, 300),
+            new RectangleF(Room.Center.X - 115, Room.Top, 230, 185),
+            new RectangleF(Room.Center.X - 115, Room.Bottom - 185, 230, 185),
+            new RectangleF(Room.Left, Room.Center.Y - 115, 185, 230),
+            new RectangleF(Room.Right - 185, Room.Center.Y - 115, 185, 230)
+        };
+
+        roomData.Rocks.RemoveAll(rock => safeZones.Any(zone => rock.Intersects(zone)));
+    }
+
+    private EnemyType ChooseEnemyType()
+    {
+        return random.NextDouble() < 0.35 ? EnemyType.Spider : EnemyType.Fly;
     }
 
     private void EnterRoom(Point roomPosition, Vector2 playerPosition)
@@ -650,7 +774,7 @@ public sealed class PrisacGame : Game
                 player.InvulnerableTimer <= 0f)
             {
                 player.Health--;
-                player.InvulnerableTimer = 0.85f;
+                player.InvulnerableTimer = PlayerContactInvulnerability;
             }
 
             currentRoom.Enemies[index] = enemy;
@@ -858,15 +982,6 @@ public sealed class PrisacGame : Game
 
     private void DrawFloorTiles()
     {
-        for (var x = Room.Left; x <= Room.Right; x += 104)
-        {
-            FillRect(new RectangleF(x, Room.Top, 1, Room.Height), new Color(102, 75, 62));
-        }
-
-        for (var y = Room.Top; y <= Room.Bottom; y += 104)
-        {
-            FillRect(new RectangleF(Room.Left, y, Room.Width, 1), new Color(102, 75, 62));
-        }
     }
 
     private void DrawDoors()
