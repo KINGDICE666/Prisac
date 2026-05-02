@@ -25,6 +25,11 @@ public readonly struct RectangleF
         return point.X >= Left && point.X <= Right && point.Y >= Top && point.Y <= Bottom;
     }
 
+    public bool Intersects(RectangleF other)
+    {
+        return Left < other.Right && Right > other.Left && Top < other.Bottom && Bottom > other.Top;
+    }
+
     public Rectangle ToRectangle()
     {
         return new Rectangle((int)X, (int)Y, (int)Width, (int)Height);

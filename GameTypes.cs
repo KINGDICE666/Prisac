@@ -68,12 +68,14 @@ public enum EnemyType
 
 public sealed class RoomData
 {
-    public RoomData(Point gridPosition)
+    public RoomData(Point gridPosition, int templateId)
     {
         GridPosition = gridPosition;
+        TemplateId = templateId;
     }
 
     public Point GridPosition { get; }
+    public int TemplateId { get; }
     public List<RectangleF> Rocks { get; } = [];
     public List<Enemy> Enemies { get; } = [];
     public bool Cleared { get; set; }
