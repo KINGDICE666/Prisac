@@ -7,18 +7,18 @@ public sealed class PrisacGame : Game
 {
     private const int DefaultBackBufferWidth = 1920;
     private const int DefaultBackBufferHeight = 1080;
-    private const int ScreenWidth = 1024;
-    private const int ScreenHeight = 672;
-    private const float PlayerRadius = 17f;
-    private const float PlayerSpeed = 245f;
-    private const float BulletSpeed = 520f;
-    private const float BulletRadius = 5f;
-    private const float EnemyRadius = 18f;
+    private const int ScreenWidth = 1920;
+    private const int ScreenHeight = 1080;
+    private const float PlayerRadius = 28f;
+    private const float PlayerSpeed = 390f;
+    private const float BulletSpeed = 830f;
+    private const float BulletRadius = 8f;
+    private const float EnemyRadius = 29f;
     private const float EnemyAcceleration = 7.5f;
-    private const float EnemySeparationRadius = 52f;
+    private const float EnemySeparationRadius = 84f;
     private const int FloorRoomCount = 5;
 
-    private static readonly RectangleF Room = new(72, 64, 880, 544);
+    private static readonly RectangleF Room = new(135, 100, 1650, 880);
     private static readonly Point Up = new(0, -1);
     private static readonly Point Down = new(0, 1);
     private static readonly Point Left = new(-1, 0);
@@ -45,7 +45,6 @@ public sealed class PrisacGame : Game
     private ScreenMode screenMode = ScreenMode.Fullscreen;
 
     private SpriteBatch spriteBatch = null!;
-    private RenderTarget2D gameTarget = null!;
     private Texture2D pixel = null!;
     private Texture2D flyTexture = null!;
     private Player player;
@@ -70,7 +69,6 @@ public sealed class PrisacGame : Game
     protected override void LoadContent()
     {
         spriteBatch = new SpriteBatch(GraphicsDevice);
-        gameTarget = new RenderTarget2D(GraphicsDevice, DefaultBackBufferWidth, DefaultBackBufferHeight);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
 
@@ -133,24 +131,11 @@ public sealed class PrisacGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.SetRenderTarget(gameTarget);
         GraphicsDevice.Clear(new Color(24, 19, 19));
 
-        var fullHdScale = Matrix.CreateScale(
-            DefaultBackBufferWidth / (float)ScreenWidth,
-            DefaultBackBufferHeight / (float)ScreenHeight,
-            1f);
-
-        spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: fullHdScale);
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         DrawGame();
         DrawMenu();
-        spriteBatch.End();
-
-        GraphicsDevice.SetRenderTarget(null);
-        GraphicsDevice.Clear(Color.Black);
-
-        spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
-        spriteBatch.Draw(gameTarget, GraphicsDevice.Viewport.Bounds, Color.White);
         spriteBatch.End();
 
         base.Draw(gameTime);
@@ -310,9 +295,9 @@ public sealed class PrisacGame : Game
 
     private void DrawPauseMenu()
     {
-        FillRect(new RectangleF(332, 116, 360, 392), new Color(36, 27, 25, 235));
-        FillRect(new RectangleF(344, 128, 336, 368), new Color(72, 52, 43, 235));
-        DrawBlockText("МЕНЮ", new Vector2(450, 156), 5, new Color(241, 228, 208));
+        FillRect(new RectangleF(660, 190, 600, 640), new Color(36, 27, 25, 235));
+        FillRect(new RectangleF(680, 210, 560, 600), new Color(72, 52, 43, 235));
+        DrawBlockText("МЕНЮ", new Vector2(850, 260), 7, new Color(241, 228, 208));
 
         var buttons = GetPauseButtons();
         DrawButton(buttons[0], "ПРОДОЛЖИТЬ", selectedMenuItem == 0);
@@ -322,9 +307,9 @@ public sealed class PrisacGame : Game
 
     private void DrawSettingsMenu()
     {
-        FillRect(new RectangleF(252, 86, 520, 500), new Color(36, 27, 25, 235));
-        FillRect(new RectangleF(264, 98, 496, 476), new Color(72, 52, 43, 235));
-        DrawBlockText("НАСТРОЙКИ", new Vector2(350, 126), 5, new Color(241, 228, 208));
+        FillRect(new RectangleF(510, 150, 900, 760), new Color(36, 27, 25, 235));
+        FillRect(new RectangleF(530, 170, 860, 720), new Color(72, 52, 43, 235));
+        DrawBlockText("НАСТРОЙКИ", new Vector2(690, 240), 7, new Color(241, 228, 208));
 
         var buttons = GetSettingsButtons();
         DrawButton(buttons[0], $"ЭКРАН: {GetScreenModeText()}", selectedSettingsItem == 0);
@@ -336,25 +321,25 @@ public sealed class PrisacGame : Game
     {
         var border = selected ? new Color(233, 177, 88) : new Color(103, 78, 63);
         var fill = selected ? new Color(98, 70, 51) : new Color(51, 38, 34);
-        var scale = text.Length > 16 ? 2 : 3;
+        var scale = text.Length > 16 ? 4 : 5;
         var textY = rect.Y + (rect.Height - 5 * scale) / 2f;
         FillRect(rect, border);
-        FillRect(new RectangleF(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8), fill);
-        DrawBlockText(text, new Vector2(rect.X + 18, textY), scale, new Color(241, 228, 208));
+        FillRect(new RectangleF(rect.X + 6, rect.Y + 6, rect.Width - 12, rect.Height - 12), fill);
+        DrawBlockText(text, new Vector2(rect.X + 28, textY), scale, new Color(241, 228, 208));
     }
 
     private RectangleF[] GetPauseButtons() =>
     [
-        new(382, 238, 260, 58),
-        new(382, 316, 260, 58),
-        new(382, 394, 260, 58)
+        new(760, 410, 400, 90),
+        new(760, 540, 400, 90),
+        new(760, 670, 400, 90)
     ];
 
     private RectangleF[] GetSettingsButtons() =>
     [
-        new(302, 226, 420, 58),
-        new(302, 314, 420, 58),
-        new(302, 456, 420, 58)
+        new(610, 390, 700, 90),
+        new(610, 530, 700, 90),
+        new(610, 740, 700, 90)
     ];
 
     private string GetScreenModeText() => screenMode switch
@@ -377,9 +362,7 @@ public sealed class PrisacGame : Game
             return -1;
         }
 
-        var point = new Vector2(
-            mouse.X * ScreenWidth / (float)Math.Max(GraphicsDevice.Viewport.Width, 1),
-            mouse.Y * ScreenHeight / (float)Math.Max(GraphicsDevice.Viewport.Height, 1));
+        var point = new Vector2(mouse.X, mouse.Y);
 
         for (var index = 0; index < buttons.Length; index++)
         {
@@ -441,9 +424,9 @@ public sealed class PrisacGame : Game
         roomData.Enemies.Clear();
 
         var offset = Math.Abs(roomData.GridPosition.X * 37 + roomData.GridPosition.Y * 53);
-        roomData.Rocks.Add(new RectangleF(276 + offset % 80, 252, 72, 72));
-        roomData.Rocks.Add(new RectangleF(676 - offset % 70, 252 + offset % 52, 72, 72));
-        roomData.Rocks.Add(new RectangleF(476, 384 - offset % 64, 72, 72));
+        roomData.Rocks.Add(new RectangleF(Room.X + 370 + offset % 130, Room.Y + 305, 116, 116));
+        roomData.Rocks.Add(new RectangleF(Room.Right - 530 - offset % 115, Room.Y + 305 + offset % 84, 116, 116));
+        roomData.Rocks.Add(new RectangleF(Room.Center.X - 58, Room.Y + 520 - offset % 104, 116, 116));
 
         if (roomData.GridPosition == Point.Zero)
         {
@@ -453,11 +436,11 @@ public sealed class PrisacGame : Game
         var enemyCount = 2 + Math.Abs(roomData.GridPosition.X + roomData.GridPosition.Y) % 3;
         var spawnPoints = new[]
         {
-            new Vector2(220, 180),
-            new Vector2(804, 180),
-            new Vector2(512, 514),
-            new Vector2(780, 500),
-            new Vector2(244, 496)
+            new Vector2(Room.X + 270, Room.Y + 190),
+            new Vector2(Room.Right - 270, Room.Y + 190),
+            new Vector2(Room.Center.X, Room.Bottom - 195),
+            new Vector2(Room.Right - 315, Room.Bottom - 220),
+            new Vector2(Room.X + 315, Room.Bottom - 220)
         };
 
         for (var index = 0; index < enemyCount; index++)
@@ -558,7 +541,7 @@ public sealed class PrisacGame : Game
         }
 
         direction.Normalize();
-        bullets.Add(new Bullet(player.Position + direction * 24f, direction * BulletSpeed));
+        bullets.Add(new Bullet(player.Position + direction * 40f, direction * BulletSpeed));
         player.ShotCooldown = 0.18f;
     }
 
@@ -726,7 +709,7 @@ public sealed class PrisacGame : Game
 
     private void DrawGame()
     {
-        FillRect(new RectangleF(Room.X - 28, Room.Y - 28, Room.Width + 56, Room.Height + 56), new Color(51, 36, 31));
+        FillRect(new RectangleF(Room.X - 48, Room.Y - 48, Room.Width + 96, Room.Height + 96), new Color(51, 36, 31));
         FillRect(Room, new Color(91, 66, 52));
         DrawFloorTiles();
         DrawDoors();
@@ -734,7 +717,7 @@ public sealed class PrisacGame : Game
         foreach (var rock in currentRoom.Rocks)
         {
             FillRect(rock, new Color(111, 106, 96));
-            FillRect(new RectangleF(rock.X + 8, rock.Y + 8, rock.Width - 16, rock.Height - 16), new Color(87, 82, 73));
+            FillRect(new RectangleF(rock.X + 13, rock.Y + 13, rock.Width - 26, rock.Height - 26), new Color(87, 82, 73));
         }
 
         foreach (var enemy in currentRoom.Enemies)
@@ -754,25 +737,25 @@ public sealed class PrisacGame : Game
         }
 
         FillCircle(player.Position, PlayerRadius, playerColor);
-        FillCircle(player.Position + new Vector2(-6, -4), 3, new Color(23, 17, 15));
-        FillCircle(player.Position + new Vector2(6, -4), 3, new Color(23, 17, 15));
+        FillCircle(player.Position + new Vector2(-10, -7), 5, new Color(23, 17, 15));
+        FillCircle(player.Position + new Vector2(10, -7), 5, new Color(23, 17, 15));
         DrawHud();
 
         if (player.Health <= 0)
         {
             FillRect(new RectangleF(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 140));
-            DrawBlockText("YOU DIED - PRESS R", new Vector2(332, 304), 4, new Color(241, 228, 208));
+            DrawBlockText("YOU DIED - PRESS R", new Vector2(590, 500), 7, new Color(241, 228, 208));
         }
     }
 
     private void DrawFloorTiles()
     {
-        for (var x = Room.Left; x <= Room.Right; x += 64)
+        for (var x = Room.Left; x <= Room.Right; x += 104)
         {
             FillRect(new RectangleF(x, Room.Top, 1, Room.Height), new Color(102, 75, 62));
         }
 
-        for (var y = Room.Top; y <= Room.Bottom; y += 64)
+        for (var y = Room.Top; y <= Room.Bottom; y += 104)
         {
             FillRect(new RectangleF(Room.Left, y, Room.Width, 1), new Color(102, 75, 62));
         }
@@ -780,10 +763,10 @@ public sealed class PrisacGame : Game
 
     private void DrawDoors()
     {
-        DrawDoor(Up, new RectangleF(Room.Center.X - 40, Room.Top - 28, 80, 32));
-        DrawDoor(Down, new RectangleF(Room.Center.X - 40, Room.Bottom - 4, 80, 32));
-        DrawDoor(Left, new RectangleF(Room.Left - 28, Room.Center.Y - 40, 32, 80));
-        DrawDoor(Right, new RectangleF(Room.Right - 4, Room.Center.Y - 40, 32, 80));
+        DrawDoor(Up, new RectangleF(Room.Center.X - 72, Room.Top - 48, 144, 52));
+        DrawDoor(Down, new RectangleF(Room.Center.X - 72, Room.Bottom - 4, 144, 52));
+        DrawDoor(Left, new RectangleF(Room.Left - 48, Room.Center.Y - 72, 52, 144));
+        DrawDoor(Right, new RectangleF(Room.Right - 4, Room.Center.Y - 72, 52, 144));
     }
 
     private void DrawDoor(Point direction, RectangleF bounds)
@@ -802,19 +785,19 @@ public sealed class PrisacGame : Game
         for (var heart = 0; heart < 3; heart++)
         {
             var color = heart * 2 < player.Health ? new Color(200, 60, 75) : new Color(59, 37, 41);
-            FillCircle(new Vector2(40 + heart * 28, 32), 9, color);
+            FillCircle(new Vector2(72 + heart * 46, 54), 15, color);
         }
 
         var clearedCount = floorRooms.Values.Count(room => room.Cleared);
         var status = currentRoom.Cleared ? $"ROOM {clearedCount}/{FloorRoomCount}" : $"ENEMIES: {currentRoom.Enemies.Count}";
-        DrawBlockText(status, new Vector2(784, 20), 2, new Color(241, 228, 208));
+        DrawBlockText(status, new Vector2(1470, 38), 4, new Color(241, 228, 208));
         DrawMiniMap();
     }
 
     private void DrawMiniMap()
     {
-        const int cell = 12;
-        var origin = new Vector2(42, 58);
+        const int cell = 22;
+        var origin = new Vector2(74, 96);
 
         foreach (var roomData in floorRooms.Values)
         {
@@ -916,12 +899,12 @@ public sealed class PrisacGame : Game
 
     private static bool IsInHorizontalDoor(Vector2 position)
     {
-        return MathF.Abs(position.X - Room.Center.X) <= 48f;
+        return MathF.Abs(position.X - Room.Center.X) <= 86f;
     }
 
     private static bool IsInVerticalDoor(Vector2 position)
     {
-        return MathF.Abs(position.Y - Room.Center.Y) <= 48f;
+        return MathF.Abs(position.Y - Room.Center.Y) <= 86f;
     }
 
     private static Point Add(Point a, Point b)
