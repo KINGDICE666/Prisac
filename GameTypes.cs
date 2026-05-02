@@ -8,24 +8,36 @@ public struct Player
         Health = health;
         InvulnerableTimer = 0f;
         ShotCooldown = 0f;
+        Damage = 5;
+        FireRate = 5;
+        Range = 5;
     }
 
     public Vector2 Position;
     public int Health;
     public float InvulnerableTimer;
     public float ShotCooldown;
+    public int Damage;
+    public int FireRate;
+    public int Range;
 }
 
 public struct Bullet
 {
-    public Bullet(Vector2 position, Vector2 velocity)
+    public Bullet(Vector2 position, Vector2 velocity, int damage, float maxDistance)
     {
         Position = position;
         Velocity = velocity;
+        Damage = damage;
+        MaxDistance = maxDistance;
+        DistanceTravelled = 0f;
     }
 
     public Vector2 Position;
     public Vector2 Velocity;
+    public int Damage;
+    public float MaxDistance;
+    public float DistanceTravelled;
 }
 
 public struct ShotEffect

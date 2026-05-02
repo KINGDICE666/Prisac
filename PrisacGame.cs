@@ -13,8 +13,12 @@ public sealed class PrisacGame : Game
     private const float PlayerSpeed = 315f;
     private const float BulletSpeed = 640f;
     private const float BulletRadius = 8f;
-    private const float ShotCooldown = 0.32f;
     private const float ShotEffectDuration = 0.13f;
+    private const float BaseShotCooldown = 0.62f;
+    private const float FireRateCooldownStep = 0.06f;
+    private const float MinimumShotCooldown = 0.12f;
+    private const float BaseBulletRange = 250f;
+    private const float BulletRangeStep = 70f;
     private const float EnemyRadius = 29f;
     private const float EnemyAcceleration = 7.5f;
     private const float EnemySeparationRadius = 84f;
@@ -53,6 +57,8 @@ public sealed class PrisacGame : Game
     private Texture2D flyTexture = null!;
     private Texture2D spiderTexture = null!;
     private Texture2D playerTexture = null!;
+    private Texture2D floorTexture = null!;
+    private Texture2D boxTexture = null!;
     private Player player;
     private int playerDirectionFrame;
     private Point currentRoomPosition;
@@ -85,6 +91,10 @@ public sealed class PrisacGame : Game
         spiderTexture = Texture2D.FromStream(GraphicsDevice, spiderStream);
         using var playerStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Player", "player_directions.png"));
         playerTexture = Texture2D.FromStream(GraphicsDevice, playerStream);
+        using var floorStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "floor_dirt.png"));
+        floorTexture = Texture2D.FromStream(GraphicsDevice, floorStream);
+        using var boxStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "box_wood.png"));
+        boxTexture = Texture2D.FromStream(GraphicsDevice, boxStream);
 
         ResetFloor();
     }
@@ -452,7 +462,7 @@ public sealed class PrisacGame : Game
         {
             var point = spawnPoints[(index + random.Next(spawnPoints.Length)) % spawnPoints.Length];
             var type = ChooseEnemyType();
-            var health = type == EnemyType.Spider ? 5 : random.Next(3, 5);
+            var health = type == EnemyType.Spider ? 20 : 15;
             var speed = type == EnemyType.Spider ? random.Next(88, 112) : random.Next(62, 92);
             roomData.Enemies.Add(new Enemy(point, health, speed, type));
         }
@@ -683,9 +693,9 @@ public sealed class PrisacGame : Game
             return;
         }
 
-        bullets.Add(new Bullet(player.Position + direction * 40f, direction * BulletSpeed));
+        bullets.Add(new Bullet(player.Position + direction * 40f, direction * BulletSpeed, player.Damage, GetBulletRange()));
         shotEffects.Add(new ShotEffect(player.Position + direction * 38f, direction, ShotEffectDuration));
-        player.ShotCooldown = ShotCooldown;
+        player.ShotCooldown = GetShotCooldown();
     }
 
     private static Vector2 GetShootDirection(KeyboardState keyboard)
@@ -736,17 +746,21 @@ public sealed class PrisacGame : Game
         for (var bulletIndex = bullets.Count - 1; bulletIndex >= 0; bulletIndex--)
         {
             var bullet = bullets[bulletIndex];
-            bullet.Position += bullet.Velocity * dt;
+            var movement = bullet.Velocity * dt;
+            bullet.Position += movement;
+            bullet.DistanceTravelled += movement.Length();
             bullets[bulletIndex] = bullet;
 
-            var shouldRemove = !Room.Contains(bullet.Position) || CircleHitsAnyRock(bullet.Position, BulletRadius);
+            var shouldRemove = bullet.DistanceTravelled >= bullet.MaxDistance ||
+                !Room.Contains(bullet.Position) ||
+                CircleHitsAnyRock(bullet.Position, BulletRadius);
 
             for (var enemyIndex = currentRoom.Enemies.Count - 1; enemyIndex >= 0; enemyIndex--)
             {
                 var enemy = currentRoom.Enemies[enemyIndex];
                 if (Vector2.DistanceSquared(bullet.Position, enemy.Position) <= Square(EnemyRadius + BulletRadius))
                 {
-                    enemy.Health--;
+                    enemy.Health -= bullet.Damage;
                     shouldRemove = true;
 
                     if (enemy.Health <= 0)
@@ -896,14 +910,13 @@ public sealed class PrisacGame : Game
     private void DrawGame()
     {
         FillRect(new RectangleF(Room.X - 48, Room.Y - 48, Room.Width + 96, Room.Height + 96), new Color(51, 36, 31));
-        FillRect(Room, new Color(91, 66, 52));
+        DrawTexturedFloor();
         DrawFloorTiles();
         DrawDoors();
 
         foreach (var rock in currentRoom.Rocks)
         {
-            FillRect(rock, new Color(111, 106, 96));
-            FillRect(new RectangleF(rock.X + 13, rock.Y + 13, rock.Width - 26, rock.Height - 26), new Color(87, 82, 73));
+            DrawTexturedBox(rock);
         }
 
         foreach (var enemy in currentRoom.Enemies)
@@ -982,6 +995,29 @@ public sealed class PrisacGame : Game
     {
     }
 
+    private void DrawTexturedFloor()
+    {
+        var tileSize = 128;
+        for (var y = Room.Top; y < Room.Bottom; y += tileSize)
+        {
+            for (var x = Room.Left; x < Room.Right; x += tileSize)
+            {
+                var width = (int)MathF.Min(tileSize, Room.Right - x);
+                var height = (int)MathF.Min(tileSize, Room.Bottom - y);
+                spriteBatch.Draw(
+                    floorTexture,
+                    new Rectangle((int)x, (int)y, width, height),
+                    new Rectangle(0, 0, width, height),
+                    Color.White);
+            }
+        }
+    }
+
+    private void DrawTexturedBox(RectangleF box)
+    {
+        spriteBatch.Draw(boxTexture, box.ToRectangle(), Color.White);
+    }
+
     private void DrawDoors()
     {
         DrawDoor(Up, new RectangleF(Room.Center.X - 72, Room.Top - 48, 144, 52));
@@ -1006,19 +1042,32 @@ public sealed class PrisacGame : Game
         for (var heart = 0; heart < 3; heart++)
         {
             var color = heart * 2 < player.Health ? new Color(200, 60, 75) : new Color(59, 37, 41);
-            FillCircle(new Vector2(72 + heart * 46, 54), 15, color);
+            FillCircle(new Vector2(150 + heart * 46, 54), 15, color);
         }
 
         var clearedCount = floorRooms.Values.Count(room => room.Cleared);
         var status = currentRoom.Cleared ? $"ROOM {clearedCount}/{FloorRoomCount}" : $"ENEMIES: {currentRoom.Enemies.Count}";
         DrawBlockText(status, new Vector2(1470, 38), 4, new Color(241, 228, 208));
+        DrawBlockText($"DMG:{player.Damage}", new Vector2(72, 132), 3, new Color(241, 228, 208));
+        DrawBlockText($"FIR:{player.FireRate}", new Vector2(72, 162), 3, new Color(241, 228, 208));
+        DrawBlockText($"RNG:{player.Range}", new Vector2(72, 192), 3, new Color(241, 228, 208));
         DrawMiniMap();
+    }
+
+    private float GetShotCooldown()
+    {
+        return MathF.Max(MinimumShotCooldown, BaseShotCooldown - player.FireRate * FireRateCooldownStep);
+    }
+
+    private float GetBulletRange()
+    {
+        return BaseBulletRange + player.Range * BulletRangeStep;
     }
 
     private void DrawMiniMap()
     {
         const int cell = 22;
-        var origin = new Vector2(74, 96);
+        var origin = new Vector2(74, 246);
 
         foreach (var roomData in floorRooms.Values)
         {
@@ -1204,6 +1253,8 @@ public sealed class PrisacGame : Game
         ['C'] = ["111", "100", "100", "100", "111"],
         ['D'] = ["110", "101", "101", "101", "110"],
         ['E'] = ["111", "100", "111", "100", "111"],
+        ['F'] = ["111", "100", "111", "100", "100"],
+        ['G'] = ["111", "100", "101", "101", "111"],
         ['I'] = ["111", "010", "010", "010", "111"],
         ['L'] = ["100", "100", "100", "100", "111"],
         ['M'] = ["101", "111", "111", "101", "101"],
