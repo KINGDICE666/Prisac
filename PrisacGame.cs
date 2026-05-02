@@ -50,6 +50,7 @@ public sealed class PrisacGame : Game
     private SpriteBatch spriteBatch = null!;
     private Texture2D pixel = null!;
     private Texture2D flyTexture = null!;
+    private Texture2D spiderTexture = null!;
     private Player player;
     private Point currentRoomPosition;
     private RoomData currentRoom = null!;
@@ -75,8 +76,10 @@ public sealed class PrisacGame : Game
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
 
-        using var flyStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "fly.png"));
+        using var flyStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "fly_directions.png"));
         flyTexture = Texture2D.FromStream(GraphicsDevice, flyStream);
+        using var spiderStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "spider_directions.png"));
+        spiderTexture = Texture2D.FromStream(GraphicsDevice, spiderStream);
 
         ResetFloor();
     }
@@ -450,8 +453,17 @@ public sealed class PrisacGame : Game
         for (var index = 0; index < enemyCount; index++)
         {
             var point = spawnPoints[(index + offset) % spawnPoints.Length];
-            roomData.Enemies.Add(new Enemy(point, 3 + index % 2, 62 + index * 10));
+            var type = ChooseEnemyType(roomData, index);
+            var health = type == EnemyType.Spider ? 5 : 3 + index % 2;
+            var speed = type == EnemyType.Spider ? 92 + index * 7 : 62 + index * 10;
+            roomData.Enemies.Add(new Enemy(point, health, speed, type));
         }
+    }
+
+    private static EnemyType ChooseEnemyType(RoomData roomData, int enemyIndex)
+    {
+        var pattern = Math.Abs(roomData.GridPosition.X * 11 + roomData.GridPosition.Y * 17 + enemyIndex * 5);
+        return pattern % 3 == 0 ? EnemyType.Spider : EnemyType.Fly;
     }
 
     private void EnterRoom(Point roomPosition, Vector2 playerPosition)
@@ -911,14 +923,38 @@ public sealed class PrisacGame : Game
 
     private void DrawEnemy(Enemy enemy)
     {
-        var size = EnemyRadius * 2.6f;
+        var size = enemy.Type == EnemyType.Spider ? EnemyRadius * 2.9f : EnemyRadius * 2.6f;
         var destination = new Rectangle(
             (int)(enemy.Position.X - size / 2f),
             (int)(enemy.Position.Y - size / 2f),
             (int)size,
             (int)size);
 
-        spriteBatch.Draw(flyTexture, destination, Color.White);
+        if (enemy.Type == EnemyType.Spider)
+        {
+            var frame = GetDirectionFrame(enemy);
+            spriteBatch.Draw(spiderTexture, destination, new Rectangle(frame * 64, 0, 64, 64), Color.White);
+            return;
+        }
+
+        var flyFrame = GetDirectionFrame(enemy);
+        spriteBatch.Draw(flyTexture, destination, new Rectangle(flyFrame * 64, 0, 64, 64), Color.White);
+    }
+
+    private static int GetDirectionFrame(Enemy enemy)
+    {
+        var direction = enemy.Velocity;
+        if (direction.LengthSquared() <= 0.01f)
+        {
+            return 0;
+        }
+
+        if (Math.Abs(direction.X) > Math.Abs(direction.Y))
+        {
+            return direction.X < 0 ? 2 : 3;
+        }
+
+        return direction.Y < 0 ? 1 : 0;
     }
 
     private void FillRect(RectangleF rect, Color color)
