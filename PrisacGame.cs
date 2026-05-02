@@ -52,7 +52,9 @@ public sealed class PrisacGame : Game
     private Texture2D pixel = null!;
     private Texture2D flyTexture = null!;
     private Texture2D spiderTexture = null!;
+    private Texture2D playerTexture = null!;
     private Player player;
+    private int playerDirectionFrame;
     private Point currentRoomPosition;
     private RoomData currentRoom = null!;
 
@@ -81,6 +83,8 @@ public sealed class PrisacGame : Game
         flyTexture = Texture2D.FromStream(GraphicsDevice, flyStream);
         using var spiderStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "spider_directions.png"));
         spiderTexture = Texture2D.FromStream(GraphicsDevice, spiderStream);
+        using var playerStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Player", "player_directions.png"));
+        playerTexture = Texture2D.FromStream(GraphicsDevice, playerStream);
 
         ResetFloor();
     }
@@ -391,6 +395,7 @@ public sealed class PrisacGame : Game
     private void ResetFloor()
     {
         player = new Player(new Vector2(Room.Center.X, Room.Center.Y), 6);
+        playerDirectionFrame = 0;
         GenerateFloor();
         EnterRoom(Point.Zero, player.Position);
     }
@@ -612,6 +617,7 @@ public sealed class PrisacGame : Game
             return;
         }
 
+        playerDirectionFrame = GetDirectionFrame(direction);
         direction.Normalize();
         var nextPosition = player.Position + direction * PlayerSpeed * dt;
 
@@ -913,15 +919,7 @@ public sealed class PrisacGame : Game
             DrawTearBullet(bullet);
         }
 
-        var playerColor = new Color(242, 209, 179);
-        if (player.InvulnerableTimer > 0f && (int)(player.InvulnerableTimer * 16f) % 2 == 0)
-        {
-            playerColor = new Color(247, 242, 231);
-        }
-
-        FillCircle(player.Position, PlayerRadius, playerColor);
-        FillCircle(player.Position + new Vector2(-10, -7), 5, new Color(23, 17, 15));
-        FillCircle(player.Position + new Vector2(10, -7), 5, new Color(23, 17, 15));
+        DrawPlayer();
         DrawHud();
 
         if (player.Health <= 0)
@@ -1047,18 +1045,35 @@ public sealed class PrisacGame : Game
 
         if (enemy.Type == EnemyType.Spider)
         {
-            var frame = GetDirectionFrame(enemy);
+            var frame = GetDirectionFrame(enemy.Velocity);
             spriteBatch.Draw(spiderTexture, destination, new Rectangle(frame * 64, 0, 64, 64), Color.White);
             return;
         }
 
-        var flyFrame = GetDirectionFrame(enemy);
+        var flyFrame = GetDirectionFrame(enemy.Velocity);
         spriteBatch.Draw(flyTexture, destination, new Rectangle(flyFrame * 64, 0, 64, 64), Color.White);
     }
 
-    private static int GetDirectionFrame(Enemy enemy)
+    private void DrawPlayer()
     {
-        var direction = enemy.Velocity;
+        var size = PlayerRadius * 2.25f;
+        var destination = new Rectangle(
+            (int)(player.Position.X - size / 2f),
+            (int)(player.Position.Y - size / 2f),
+            (int)size,
+            (int)size);
+
+        var tint = Color.White;
+        if (player.InvulnerableTimer > 0f && (int)(player.InvulnerableTimer * 16f) % 2 == 0)
+        {
+            tint = new Color(255, 255, 255, 120);
+        }
+
+        spriteBatch.Draw(playerTexture, destination, new Rectangle(playerDirectionFrame * 64, 0, 64, 64), tint);
+    }
+
+    private static int GetDirectionFrame(Vector2 direction)
+    {
         if (direction.LengthSquared() <= 0.01f)
         {
             return 0;
