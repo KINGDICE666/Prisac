@@ -12,19 +12,28 @@ public sealed class PrisacGame : Game
     private const float BulletSpeed = 520f;
     private const float BulletRadius = 5f;
     private const float EnemyRadius = 18f;
+    private const float EnemyAcceleration = 7.5f;
+    private const float EnemySeparationRadius = 52f;
+    private const int FloorRoomCount = 5;
 
     private static readonly RectangleF Room = new(72, 64, 880, 544);
+    private static readonly Point Up = new(0, -1);
+    private static readonly Point Down = new(0, 1);
+    private static readonly Point Left = new(-1, 0);
+    private static readonly Point Right = new(1, 0);
+    private static readonly Point[] Directions = [Up, Down, Left, Right];
 
     private readonly GraphicsDeviceManager graphics;
     private readonly List<Bullet> bullets = [];
-    private readonly List<Enemy> enemies = [];
-    private readonly List<RectangleF> rocks = [];
+    private readonly Dictionary<Point, RoomData> floorRooms = [];
+    private readonly Random random = new();
 
     private SpriteBatch spriteBatch = null!;
     private Texture2D pixel = null!;
     private Texture2D flyTexture = null!;
     private Player player;
-    private bool roomCleared;
+    private Point currentRoomPosition;
+    private RoomData currentRoom = null!;
 
     public PrisacGame()
     {
@@ -45,9 +54,11 @@ public sealed class PrisacGame : Game
         spriteBatch = new SpriteBatch(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
+
         using var flyStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "fly.png"));
         flyTexture = Texture2D.FromStream(GraphicsDevice, flyStream);
-        ResetRoom();
+
+        ResetFloor();
     }
 
     protected override void Update(GameTime gameTime)
@@ -60,7 +71,7 @@ public sealed class PrisacGame : Game
 
         if (keyboard.IsKeyDown(Keys.R))
         {
-            ResetRoom();
+            ResetFloor();
         }
 
         if (player.Health <= 0)
@@ -78,7 +89,11 @@ public sealed class PrisacGame : Game
         UpdateBullets(dt);
         UpdateEnemies(dt);
 
-        roomCleared = enemies.Count == 0;
+        if (currentRoom.Enemies.Count == 0)
+        {
+            currentRoom.Cleared = true;
+        }
+
         base.Update(gameTime);
     }
 
@@ -93,21 +108,82 @@ public sealed class PrisacGame : Game
         base.Draw(gameTime);
     }
 
-    private void ResetRoom()
+    private void ResetFloor()
     {
         player = new Player(new Vector2(Room.Center.X, Room.Center.Y), 6);
-        roomCleared = false;
+        GenerateFloor();
+        EnterRoom(Point.Zero, player.Position);
+    }
+
+    private void GenerateFloor()
+    {
+        floorRooms.Clear();
+        var start = Point.Zero;
+        floorRooms[start] = new RoomData(start);
+        var frontier = new List<Point> { start };
+
+        while (floorRooms.Count < FloorRoomCount)
+        {
+            var from = frontier[random.Next(frontier.Count)];
+            var direction = Directions[random.Next(Directions.Length)];
+            var next = Add(from, direction);
+
+            if (floorRooms.ContainsKey(next))
+            {
+                continue;
+            }
+
+            floorRooms[next] = new RoomData(next);
+            frontier.Add(next);
+        }
+
+        foreach (var roomData in floorRooms.Values)
+        {
+            FillRoom(roomData);
+        }
+
+        floorRooms[start].Cleared = true;
+        floorRooms[start].Enemies.Clear();
+    }
+
+    private void FillRoom(RoomData roomData)
+    {
+        roomData.Rocks.Clear();
+        roomData.Enemies.Clear();
+
+        var offset = Math.Abs(roomData.GridPosition.X * 37 + roomData.GridPosition.Y * 53);
+        roomData.Rocks.Add(new RectangleF(276 + offset % 80, 252, 72, 72));
+        roomData.Rocks.Add(new RectangleF(676 - offset % 70, 252 + offset % 52, 72, 72));
+        roomData.Rocks.Add(new RectangleF(476, 384 - offset % 64, 72, 72));
+
+        if (roomData.GridPosition == Point.Zero)
+        {
+            return;
+        }
+
+        var enemyCount = 2 + Math.Abs(roomData.GridPosition.X + roomData.GridPosition.Y) % 3;
+        var spawnPoints = new[]
+        {
+            new Vector2(220, 180),
+            new Vector2(804, 180),
+            new Vector2(512, 514),
+            new Vector2(780, 500),
+            new Vector2(244, 496)
+        };
+
+        for (var index = 0; index < enemyCount; index++)
+        {
+            var point = spawnPoints[(index + offset) % spawnPoints.Length];
+            roomData.Enemies.Add(new Enemy(point, 3 + index % 2, 62 + index * 10));
+        }
+    }
+
+    private void EnterRoom(Point roomPosition, Vector2 playerPosition)
+    {
+        currentRoomPosition = roomPosition;
+        currentRoom = floorRooms[currentRoomPosition];
+        player.Position = playerPosition;
         bullets.Clear();
-
-        rocks.Clear();
-        rocks.Add(new RectangleF(276, 252, 72, 72));
-        rocks.Add(new RectangleF(676, 252, 72, 72));
-        rocks.Add(new RectangleF(476, 384, 72, 72));
-
-        enemies.Clear();
-        enemies.Add(new Enemy(new Vector2(220, 180), 3, 72));
-        enemies.Add(new Enemy(new Vector2(804, 180), 3, 72));
-        enemies.Add(new Enemy(new Vector2(512, 514), 4, 58));
     }
 
     private void MovePlayer(KeyboardState keyboard, float dt)
@@ -125,6 +201,12 @@ public sealed class PrisacGame : Game
 
         direction.Normalize();
         var nextPosition = player.Position + direction * PlayerSpeed * dt;
+
+        if (TryChangeRoom(nextPosition))
+        {
+            return;
+        }
+
         nextPosition.X = MathHelper.Clamp(nextPosition.X, Room.Left + PlayerRadius, Room.Right - PlayerRadius);
         nextPosition.Y = MathHelper.Clamp(nextPosition.Y, Room.Top + PlayerRadius, Room.Bottom - PlayerRadius);
 
@@ -132,6 +214,40 @@ public sealed class PrisacGame : Game
         {
             player.Position = nextPosition;
         }
+    }
+
+    private bool TryChangeRoom(Vector2 nextPosition)
+    {
+        if (!currentRoom.Cleared)
+        {
+            return false;
+        }
+
+        if (nextPosition.Y < Room.Top + PlayerRadius && IsInHorizontalDoor(player.Position) && HasNeighbor(Up))
+        {
+            EnterRoom(Add(currentRoomPosition, Up), new Vector2(Room.Center.X, Room.Bottom - PlayerRadius - 6));
+            return true;
+        }
+
+        if (nextPosition.Y > Room.Bottom - PlayerRadius && IsInHorizontalDoor(player.Position) && HasNeighbor(Down))
+        {
+            EnterRoom(Add(currentRoomPosition, Down), new Vector2(Room.Center.X, Room.Top + PlayerRadius + 6));
+            return true;
+        }
+
+        if (nextPosition.X < Room.Left + PlayerRadius && IsInVerticalDoor(player.Position) && HasNeighbor(Left))
+        {
+            EnterRoom(Add(currentRoomPosition, Left), new Vector2(Room.Right - PlayerRadius - 6, Room.Center.Y));
+            return true;
+        }
+
+        if (nextPosition.X > Room.Right - PlayerRadius && IsInVerticalDoor(player.Position) && HasNeighbor(Right))
+        {
+            EnterRoom(Add(currentRoomPosition, Right), new Vector2(Room.Left + PlayerRadius + 6, Room.Center.Y));
+            return true;
+        }
+
+        return false;
     }
 
     private void Shoot(KeyboardState keyboard)
@@ -167,9 +283,9 @@ public sealed class PrisacGame : Game
 
             var shouldRemove = !Room.Contains(bullet.Position) || CircleHitsAnyRock(bullet.Position, BulletRadius);
 
-            for (var enemyIndex = enemies.Count - 1; enemyIndex >= 0; enemyIndex--)
+            for (var enemyIndex = currentRoom.Enemies.Count - 1; enemyIndex >= 0; enemyIndex--)
             {
-                var enemy = enemies[enemyIndex];
+                var enemy = currentRoom.Enemies[enemyIndex];
                 if (Vector2.DistanceSquared(bullet.Position, enemy.Position) <= Square(EnemyRadius + BulletRadius))
                 {
                     enemy.Health--;
@@ -177,11 +293,11 @@ public sealed class PrisacGame : Game
 
                     if (enemy.Health <= 0)
                     {
-                        enemies.RemoveAt(enemyIndex);
+                        currentRoom.Enemies.RemoveAt(enemyIndex);
                     }
                     else
                     {
-                        enemies[enemyIndex] = enemy;
+                        currentRoom.Enemies[enemyIndex] = enemy;
                     }
 
                     break;
@@ -197,20 +313,10 @@ public sealed class PrisacGame : Game
 
     private void UpdateEnemies(float dt)
     {
-        for (var index = 0; index < enemies.Count; index++)
+        for (var index = 0; index < currentRoom.Enemies.Count; index++)
         {
-            var enemy = enemies[index];
-            var toPlayer = player.Position - enemy.Position;
-
-            if (toPlayer.LengthSquared() > 0f)
-            {
-                toPlayer.Normalize();
-                var nextPosition = enemy.Position + toPlayer * enemy.Speed * dt;
-                if (!CircleHitsAnyRock(nextPosition, EnemyRadius))
-                {
-                    enemy.Position = nextPosition;
-                }
-            }
+            var enemy = currentRoom.Enemies[index];
+            MoveEnemy(index, ref enemy, dt);
 
             if (Vector2.DistanceSquared(player.Position, enemy.Position) <= Square(EnemyRadius + PlayerRadius) &&
                 player.InvulnerableTimer <= 0f)
@@ -219,8 +325,114 @@ public sealed class PrisacGame : Game
                 player.InvulnerableTimer = 0.85f;
             }
 
-            enemies[index] = enemy;
+            currentRoom.Enemies[index] = enemy;
         }
+    }
+
+    private void MoveEnemy(int enemyIndex, ref Enemy enemy, float dt)
+    {
+        var desiredDirection = player.Position - enemy.Position;
+        if (desiredDirection.LengthSquared() > 0f)
+        {
+            desiredDirection.Normalize();
+        }
+
+        desiredDirection += GetEnemySeparation(enemyIndex, enemy.Position) * 0.75f;
+        if (desiredDirection.LengthSquared() > 0f)
+        {
+            desiredDirection.Normalize();
+        }
+
+        var desiredVelocity = desiredDirection * enemy.Speed;
+        enemy.Velocity = Vector2.Lerp(enemy.Velocity, desiredVelocity, MathHelper.Clamp(dt * EnemyAcceleration, 0f, 1f));
+
+        if (enemy.Velocity.LengthSquared() <= 0.01f)
+        {
+            return;
+        }
+
+        var movement = enemy.Velocity * dt;
+        if (TryMoveEnemy(ref enemy, movement))
+        {
+            return;
+        }
+
+        var horizontal = new Vector2(movement.X, 0f);
+        var vertical = new Vector2(0f, movement.Y);
+        var horizontalFirst = Math.Abs(movement.X) > Math.Abs(movement.Y);
+
+        if (horizontalFirst)
+        {
+            if (TryMoveEnemy(ref enemy, horizontal) || TryMoveEnemy(ref enemy, vertical))
+            {
+                enemy.Velocity *= 0.82f;
+                return;
+            }
+        }
+        else if (TryMoveEnemy(ref enemy, vertical) || TryMoveEnemy(ref enemy, horizontal))
+        {
+            enemy.Velocity *= 0.82f;
+            return;
+        }
+
+        var tangentA = new Vector2(-desiredDirection.Y, desiredDirection.X) * enemy.Speed * dt;
+        var tangentB = new Vector2(desiredDirection.Y, -desiredDirection.X) * enemy.Speed * dt;
+        var tangent = Vector2.DistanceSquared(enemy.Position + tangentA, player.Position) <
+            Vector2.DistanceSquared(enemy.Position + tangentB, player.Position) ? tangentA : tangentB;
+
+        if (TryMoveEnemy(ref enemy, tangent))
+        {
+            enemy.Velocity = Vector2.Normalize(tangent) * enemy.Speed * 0.55f;
+            return;
+        }
+
+        enemy.Velocity *= 0.25f;
+    }
+
+    private Vector2 GetEnemySeparation(int enemyIndex, Vector2 position)
+    {
+        var push = Vector2.Zero;
+
+        for (var otherIndex = 0; otherIndex < currentRoom.Enemies.Count; otherIndex++)
+        {
+            if (otherIndex == enemyIndex)
+            {
+                continue;
+            }
+
+            var away = position - currentRoom.Enemies[otherIndex].Position;
+            var distanceSquared = away.LengthSquared();
+            if (distanceSquared <= 0.001f || distanceSquared > Square(EnemySeparationRadius))
+            {
+                continue;
+            }
+
+            var distance = MathF.Sqrt(distanceSquared);
+            push += away / distance * (1f - distance / EnemySeparationRadius);
+        }
+
+        return push;
+    }
+
+    private bool TryMoveEnemy(ref Enemy enemy, Vector2 movement)
+    {
+        if (movement.LengthSquared() <= 0.001f)
+        {
+            return false;
+        }
+
+        var nextPosition = enemy.Position + movement;
+        if (nextPosition.X < Room.Left + EnemyRadius ||
+            nextPosition.X > Room.Right - EnemyRadius ||
+            nextPosition.Y < Room.Top + EnemyRadius ||
+            nextPosition.Y > Room.Bottom - EnemyRadius ||
+            CircleHitsAnyRock(nextPosition, EnemyRadius))
+        {
+            return false;
+        }
+
+        enemy.Position = nextPosition;
+        return true;
     }
 
     private void DrawGame()
@@ -230,13 +442,13 @@ public sealed class PrisacGame : Game
         DrawFloorTiles();
         DrawDoors();
 
-        foreach (var rock in rocks)
+        foreach (var rock in currentRoom.Rocks)
         {
             FillRect(rock, new Color(111, 106, 96));
             FillRect(new RectangleF(rock.X + 8, rock.Y + 8, rock.Width - 16, rock.Height - 16), new Color(87, 82, 73));
         }
 
-        foreach (var enemy in enemies)
+        foreach (var enemy in currentRoom.Enemies)
         {
             DrawEnemy(enemy);
         }
@@ -279,11 +491,21 @@ public sealed class PrisacGame : Game
 
     private void DrawDoors()
     {
-        var doorColor = roomCleared ? new Color(195, 146, 77) : new Color(42, 32, 28);
-        FillRect(new RectangleF(Room.Center.X - 40, Room.Top - 28, 80, 32), doorColor);
-        FillRect(new RectangleF(Room.Center.X - 40, Room.Bottom - 4, 80, 32), doorColor);
-        FillRect(new RectangleF(Room.Left - 28, Room.Center.Y - 40, 32, 80), doorColor);
-        FillRect(new RectangleF(Room.Right - 4, Room.Center.Y - 40, 32, 80), doorColor);
+        DrawDoor(Up, new RectangleF(Room.Center.X - 40, Room.Top - 28, 80, 32));
+        DrawDoor(Down, new RectangleF(Room.Center.X - 40, Room.Bottom - 4, 80, 32));
+        DrawDoor(Left, new RectangleF(Room.Left - 28, Room.Center.Y - 40, 32, 80));
+        DrawDoor(Right, new RectangleF(Room.Right - 4, Room.Center.Y - 40, 32, 80));
+    }
+
+    private void DrawDoor(Point direction, RectangleF bounds)
+    {
+        if (!HasNeighbor(direction))
+        {
+            return;
+        }
+
+        var doorColor = currentRoom.Cleared ? new Color(195, 146, 77) : new Color(42, 32, 28);
+        FillRect(bounds, doorColor);
     }
 
     private void DrawHud()
@@ -294,7 +516,29 @@ public sealed class PrisacGame : Game
             FillCircle(new Vector2(40 + heart * 28, 32), 9, color);
         }
 
-        DrawBlockText(roomCleared ? "ROOM CLEAR" : $"ENEMIES: {enemies.Count}", new Vector2(812, 20), 2, new Color(241, 228, 208));
+        var clearedCount = floorRooms.Values.Count(room => room.Cleared);
+        var status = currentRoom.Cleared ? $"ROOM {clearedCount}/{FloorRoomCount}" : $"ENEMIES: {currentRoom.Enemies.Count}";
+        DrawBlockText(status, new Vector2(784, 20), 2, new Color(241, 228, 208));
+        DrawMiniMap();
+    }
+
+    private void DrawMiniMap()
+    {
+        const int cell = 12;
+        var origin = new Vector2(42, 58);
+
+        foreach (var roomData in floorRooms.Values)
+        {
+            var x = origin.X + roomData.GridPosition.X * (cell + 4);
+            var y = origin.Y + roomData.GridPosition.Y * (cell + 4);
+            var color = roomData.Cleared ? new Color(195, 146, 77) : new Color(74, 62, 58);
+            if (roomData.GridPosition == currentRoomPosition)
+            {
+                color = new Color(207, 232, 243);
+            }
+
+            FillRect(new RectangleF(x, y, cell, cell), color);
+        }
     }
 
     private void DrawEnemy(Enemy enemy)
@@ -365,7 +609,7 @@ public sealed class PrisacGame : Game
 
     private bool CircleHitsAnyRock(Vector2 center, float radius)
     {
-        foreach (var rock in rocks)
+        foreach (var rock in currentRoom.Rocks)
         {
             if (CircleHitsRect(center, radius, rock))
             {
@@ -374,6 +618,26 @@ public sealed class PrisacGame : Game
         }
 
         return false;
+    }
+
+    private bool HasNeighbor(Point direction)
+    {
+        return floorRooms.ContainsKey(Add(currentRoomPosition, direction));
+    }
+
+    private static bool IsInHorizontalDoor(Vector2 position)
+    {
+        return MathF.Abs(position.X - Room.Center.X) <= 48f;
+    }
+
+    private static bool IsInVerticalDoor(Vector2 position)
+    {
+        return MathF.Abs(position.Y - Room.Center.Y) <= 48f;
+    }
+
+    private static Point Add(Point a, Point b)
+    {
+        return new Point(a.X + b.X, a.Y + b.Y);
     }
 
     private static bool CircleHitsRect(Vector2 center, float radius, RectangleF rect)
@@ -401,6 +665,7 @@ public sealed class PrisacGame : Game
         ['9'] = ["111", "101", "111", "001", "111"],
         [':'] = ["0", "1", "0", "1", "0"],
         ['-'] = ["000", "000", "111", "000", "000"],
+        ['/'] = ["001", "001", "010", "100", "100"],
         ['A'] = ["111", "101", "111", "101", "101"],
         ['C'] = ["111", "100", "100", "100", "111"],
         ['D'] = ["110", "101", "101", "101", "110"],
