@@ -30,18 +30,26 @@ public struct Bullet
 
 public struct Enemy
 {
-    public Enemy(Vector2 position, int health, float speed)
+    public Enemy(Vector2 position, int health, float speed, EnemyType type = EnemyType.Fly)
     {
         Position = position;
         Health = health;
         Speed = speed;
         Velocity = Vector2.Zero;
+        Type = type;
     }
 
     public Vector2 Position;
     public int Health;
     public float Speed;
     public Vector2 Velocity;
+    public EnemyType Type;
+}
+
+public enum EnemyType
+{
+    Fly,
+    Spider
 }
 
 public sealed class RoomData
