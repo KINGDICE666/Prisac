@@ -1,5 +1,8 @@
 bin/
 obj/
 publish/
+.publish_tmp/
+.dotnet_home/
+.nuget_packages/
 dist/
 *.zip

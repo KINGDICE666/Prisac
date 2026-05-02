@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System.IO;
 
 public sealed class PrisacGame : Game
 {
@@ -21,6 +22,7 @@ public sealed class PrisacGame : Game
 
     private SpriteBatch spriteBatch = null!;
     private Texture2D pixel = null!;
+    private Texture2D flyTexture = null!;
     private Player player;
     private bool roomCleared;
 
@@ -43,6 +45,8 @@ public sealed class PrisacGame : Game
         spriteBatch = new SpriteBatch(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
+        using var flyStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "fly.png"));
+        flyTexture = Texture2D.FromStream(GraphicsDevice, flyStream);
         ResetRoom();
     }
 
@@ -234,9 +238,7 @@ public sealed class PrisacGame : Game
 
         foreach (var enemy in enemies)
         {
-            FillCircle(enemy.Position, EnemyRadius, new Color(173, 57, 71));
-            FillCircle(enemy.Position + new Vector2(-6, -4), 3, new Color(27, 16, 18));
-            FillCircle(enemy.Position + new Vector2(6, -4), 3, new Color(27, 16, 18));
+            DrawEnemy(enemy);
         }
 
         foreach (var bullet in bullets)
@@ -293,6 +295,18 @@ public sealed class PrisacGame : Game
         }
 
         DrawBlockText(roomCleared ? "ROOM CLEAR" : $"ENEMIES: {enemies.Count}", new Vector2(812, 20), 2, new Color(241, 228, 208));
+    }
+
+    private void DrawEnemy(Enemy enemy)
+    {
+        var size = EnemyRadius * 2.6f;
+        var destination = new Rectangle(
+            (int)(enemy.Position.X - size / 2f),
+            (int)(enemy.Position.Y - size / 2f),
+            (int)size,
+            (int)size);
+
+        spriteBatch.Draw(flyTexture, destination, Color.White);
     }
 
     private void FillRect(RectangleF rect, Color color)
