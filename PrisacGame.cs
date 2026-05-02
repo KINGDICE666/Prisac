@@ -70,7 +70,7 @@ public sealed class PrisacGame : Game
     protected override void LoadContent()
     {
         spriteBatch = new SpriteBatch(GraphicsDevice);
-        gameTarget = new RenderTarget2D(GraphicsDevice, ScreenWidth, ScreenHeight);
+        gameTarget = new RenderTarget2D(GraphicsDevice, DefaultBackBufferWidth, DefaultBackBufferHeight);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
 
@@ -136,7 +136,12 @@ public sealed class PrisacGame : Game
         GraphicsDevice.SetRenderTarget(gameTarget);
         GraphicsDevice.Clear(new Color(24, 19, 19));
 
-        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        var fullHdScale = Matrix.CreateScale(
+            DefaultBackBufferWidth / (float)ScreenWidth,
+            DefaultBackBufferHeight / (float)ScreenHeight,
+            1f);
+
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: fullHdScale);
         DrawGame();
         DrawMenu();
         spriteBatch.End();
