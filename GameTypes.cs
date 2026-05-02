@@ -56,3 +56,17 @@ public sealed class RoomData
     public List<Enemy> Enemies { get; } = [];
     public bool Cleared { get; set; }
 }
+
+public enum GameMenuState
+{
+    Playing,
+    Pause,
+    Settings
+}
+
+public enum ScreenMode
+{
+    Fullscreen,
+    Windowed,
+    Borderless
+}

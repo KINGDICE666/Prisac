@@ -5,6 +5,11 @@ using System.IO;
 
 public sealed class PrisacGame : Game
 {
+<<<<<<< Updated upstream
+=======
+    private const int DefaultBackBufferWidth = 1920;
+    private const int DefaultBackBufferHeight = 1080;
+>>>>>>> Stashed changes
     private const int ScreenWidth = 1024;
     private const int ScreenHeight = 672;
     private const float PlayerRadius = 17f;
@@ -17,16 +22,33 @@ public sealed class PrisacGame : Game
     private const int FloorRoomCount = 5;
 
     private static readonly RectangleF Room = new(72, 64, 880, 544);
+<<<<<<< Updated upstream
     private static readonly Point Up = new(0, -1);
     private static readonly Point Down = new(0, 1);
     private static readonly Point Left = new(-1, 0);
     private static readonly Point Right = new(1, 0);
     private static readonly Point[] Directions = [Up, Down, Left, Right];
+=======
+    private static readonly Point[] Resolutions =
+    [
+        new(1280, 720),
+        new(1600, 900),
+        new(1920, 1080)
+    ];
+>>>>>>> Stashed changes
 
     private readonly GraphicsDeviceManager graphics;
     private readonly List<Bullet> bullets = [];
     private readonly Dictionary<Point, RoomData> floorRooms = [];
     private readonly Random random = new();
+
+    private GameMenuState menuState = GameMenuState.Playing;
+    private KeyboardState previousKeyboard;
+    private MouseState previousMouse;
+    private int selectedMenuItem;
+    private int selectedSettingsItem;
+    private int resolutionIndex = 2;
+    private ScreenMode screenMode = ScreenMode.Fullscreen;
 
     private SpriteBatch spriteBatch = null!;
     private Texture2D pixel = null!;
@@ -39,8 +61,14 @@ public sealed class PrisacGame : Game
     {
         graphics = new GraphicsDeviceManager(this)
         {
+<<<<<<< Updated upstream
             PreferredBackBufferWidth = ScreenWidth,
             PreferredBackBufferHeight = ScreenHeight,
+=======
+            PreferredBackBufferWidth = DefaultBackBufferWidth,
+            PreferredBackBufferHeight = DefaultBackBufferHeight,
+            IsFullScreen = true,
+>>>>>>> Stashed changes
             SynchronizeWithVerticalRetrace = true
         };
 
@@ -64,9 +92,20 @@ public sealed class PrisacGame : Game
     protected override void Update(GameTime gameTime)
     {
         var keyboard = Keyboard.GetState();
-        if (keyboard.IsKeyDown(Keys.Escape))
+        var mouse = Mouse.GetState();
+
+        if (IsKeyPressed(keyboard, Keys.Escape))
         {
-            Exit();
+            ToggleMenuBack();
+        }
+
+        if (menuState != GameMenuState.Playing)
+        {
+            UpdateMenu(keyboard, mouse);
+            previousKeyboard = keyboard;
+            previousMouse = mouse;
+            base.Update(gameTime);
+            return;
         }
 
         if (keyboard.IsKeyDown(Keys.R))
@@ -89,11 +128,17 @@ public sealed class PrisacGame : Game
         UpdateBullets(dt);
         UpdateEnemies(dt);
 
+<<<<<<< Updated upstream
         if (currentRoom.Enemies.Count == 0)
         {
             currentRoom.Cleared = true;
         }
 
+=======
+        roomCleared = enemies.Count == 0;
+        previousKeyboard = keyboard;
+        previousMouse = mouse;
+>>>>>>> Stashed changes
         base.Update(gameTime);
     }
 
@@ -103,12 +148,258 @@ public sealed class PrisacGame : Game
 
         spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         DrawGame();
+        DrawMenu();
         spriteBatch.End();
 
         base.Draw(gameTime);
     }
 
+<<<<<<< Updated upstream
     private void ResetFloor()
+=======
+    private void ToggleMenuBack()
+    {
+        if (menuState == GameMenuState.Playing)
+        {
+            menuState = GameMenuState.Pause;
+            selectedMenuItem = 0;
+        }
+        else if (menuState == GameMenuState.Settings)
+        {
+            menuState = GameMenuState.Pause;
+        }
+        else
+        {
+            menuState = GameMenuState.Playing;
+        }
+    }
+
+    private void UpdateMenu(KeyboardState keyboard, MouseState mouse)
+    {
+        if (menuState == GameMenuState.Pause)
+        {
+            UpdatePauseMenu(keyboard, mouse);
+            return;
+        }
+
+        UpdateSettingsMenu(keyboard, mouse);
+    }
+
+    private void UpdatePauseMenu(KeyboardState keyboard, MouseState mouse)
+    {
+        var buttons = GetPauseButtons();
+        if (IsKeyPressed(keyboard, Keys.Up) || IsKeyPressed(keyboard, Keys.W))
+        {
+            selectedMenuItem = Wrap(selectedMenuItem - 1, buttons.Length);
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Down) || IsKeyPressed(keyboard, Keys.S))
+        {
+            selectedMenuItem = Wrap(selectedMenuItem + 1, buttons.Length);
+        }
+
+        var clickedButton = GetClickedButton(mouse, buttons);
+        if (clickedButton >= 0)
+        {
+            selectedMenuItem = clickedButton;
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Enter) || IsKeyPressed(keyboard, Keys.Space) || clickedButton >= 0)
+        {
+            if (selectedMenuItem == 0)
+            {
+                menuState = GameMenuState.Playing;
+            }
+            else if (selectedMenuItem == 1)
+            {
+                menuState = GameMenuState.Settings;
+                selectedSettingsItem = 0;
+            }
+            else
+            {
+                Exit();
+            }
+        }
+    }
+
+    private void UpdateSettingsMenu(KeyboardState keyboard, MouseState mouse)
+    {
+        var buttons = GetSettingsButtons();
+        if (IsKeyPressed(keyboard, Keys.Up) || IsKeyPressed(keyboard, Keys.W))
+        {
+            selectedSettingsItem = Wrap(selectedSettingsItem - 1, buttons.Length);
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Down) || IsKeyPressed(keyboard, Keys.S))
+        {
+            selectedSettingsItem = Wrap(selectedSettingsItem + 1, buttons.Length);
+        }
+
+        var clickedButton = GetClickedButton(mouse, buttons);
+        if (clickedButton >= 0)
+        {
+            selectedSettingsItem = clickedButton;
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Left) || IsKeyPressed(keyboard, Keys.A))
+        {
+            ChangeSetting(-1);
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Right) || IsKeyPressed(keyboard, Keys.D))
+        {
+            ChangeSetting(1);
+        }
+
+        if (IsKeyPressed(keyboard, Keys.Enter) || IsKeyPressed(keyboard, Keys.Space) || clickedButton >= 0)
+        {
+            if (selectedSettingsItem == 2)
+            {
+                menuState = GameMenuState.Pause;
+            }
+            else
+            {
+                ChangeSetting(1);
+            }
+        }
+    }
+
+    private void ChangeSetting(int direction)
+    {
+        if (selectedSettingsItem == 0)
+        {
+            screenMode = (ScreenMode)Wrap((int)screenMode + direction, 3);
+            ApplyScreenSettings();
+        }
+        else if (selectedSettingsItem == 1)
+        {
+            resolutionIndex = Wrap(resolutionIndex + direction, Resolutions.Length);
+            ApplyScreenSettings();
+        }
+    }
+
+    private void ApplyScreenSettings()
+    {
+        var resolution = Resolutions[resolutionIndex];
+        var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+
+        Window.IsBorderless = screenMode == ScreenMode.Borderless;
+        graphics.IsFullScreen = screenMode == ScreenMode.Fullscreen;
+        graphics.PreferredBackBufferWidth = screenMode == ScreenMode.Borderless ? displayMode.Width : resolution.X;
+        graphics.PreferredBackBufferHeight = screenMode == ScreenMode.Borderless ? displayMode.Height : resolution.Y;
+        graphics.ApplyChanges();
+    }
+
+    private void DrawMenu()
+    {
+        if (menuState == GameMenuState.Playing)
+        {
+            return;
+        }
+
+        FillRect(new RectangleF(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 150));
+
+        if (menuState == GameMenuState.Pause)
+        {
+            DrawPauseMenu();
+        }
+        else
+        {
+            DrawSettingsMenu();
+        }
+    }
+
+    private void DrawPauseMenu()
+    {
+        FillRect(new RectangleF(332, 116, 360, 392), new Color(36, 27, 25, 235));
+        FillRect(new RectangleF(344, 128, 336, 368), new Color(72, 52, 43, 235));
+        DrawBlockText("МЕНЮ", new Vector2(450, 156), 5, new Color(241, 228, 208));
+
+        var buttons = GetPauseButtons();
+        DrawButton(buttons[0], "ПРОДОЛЖИТЬ", selectedMenuItem == 0);
+        DrawButton(buttons[1], "НАСТРОЙКИ", selectedMenuItem == 1);
+        DrawButton(buttons[2], "ВЫХОД", selectedMenuItem == 2);
+    }
+
+    private void DrawSettingsMenu()
+    {
+        FillRect(new RectangleF(252, 86, 520, 500), new Color(36, 27, 25, 235));
+        FillRect(new RectangleF(264, 98, 496, 476), new Color(72, 52, 43, 235));
+        DrawBlockText("НАСТРОЙКИ", new Vector2(350, 126), 5, new Color(241, 228, 208));
+
+        var buttons = GetSettingsButtons();
+        DrawButton(buttons[0], $"ЭКРАН: {GetScreenModeText()}", selectedSettingsItem == 0);
+        DrawButton(buttons[1], $"РАЗРЕШЕНИЕ: {GetResolutionText()}", selectedSettingsItem == 1);
+        DrawButton(buttons[2], "НАЗАД", selectedSettingsItem == 2);
+    }
+
+    private void DrawButton(RectangleF rect, string text, bool selected)
+    {
+        var border = selected ? new Color(233, 177, 88) : new Color(103, 78, 63);
+        var fill = selected ? new Color(98, 70, 51) : new Color(51, 38, 34);
+        var scale = text.Length > 16 ? 2 : 3;
+        var textY = rect.Y + (rect.Height - 5 * scale) / 2f;
+        FillRect(rect, border);
+        FillRect(new RectangleF(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8), fill);
+        DrawBlockText(text, new Vector2(rect.X + 18, textY), scale, new Color(241, 228, 208));
+    }
+
+    private RectangleF[] GetPauseButtons() =>
+    [
+        new(382, 238, 260, 58),
+        new(382, 316, 260, 58),
+        new(382, 394, 260, 58)
+    ];
+
+    private RectangleF[] GetSettingsButtons() =>
+    [
+        new(302, 226, 420, 58),
+        new(302, 314, 420, 58),
+        new(302, 456, 420, 58)
+    ];
+
+    private string GetScreenModeText() => screenMode switch
+    {
+        ScreenMode.Windowed => "В ОКНЕ",
+        ScreenMode.Borderless => "ВЕСЬ ЭКРАН",
+        _ => "ПОЛНЫЙ"
+    };
+
+    private string GetResolutionText()
+    {
+        var resolution = Resolutions[resolutionIndex];
+        return $"{resolution.X}X{resolution.Y}";
+    }
+
+    private int GetClickedButton(MouseState mouse, RectangleF[] buttons)
+    {
+        if (mouse.LeftButton != ButtonState.Pressed || previousMouse.LeftButton == ButtonState.Pressed)
+        {
+            return -1;
+        }
+
+        var point = new Vector2(
+            mouse.X * ScreenWidth / (float)Math.Max(GraphicsDevice.Viewport.Width, 1),
+            mouse.Y * ScreenHeight / (float)Math.Max(GraphicsDevice.Viewport.Height, 1));
+
+        for (var index = 0; index < buttons.Length; index++)
+        {
+            if (buttons[index].Contains(point))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private bool IsKeyPressed(KeyboardState keyboard, Keys key) =>
+        keyboard.IsKeyDown(key) && !previousKeyboard.IsKeyDown(key);
+
+    private static int Wrap(int value, int length) => (value % length + length) % length;
+
+    private void ResetRoom()
+>>>>>>> Stashed changes
     {
         player = new Player(new Vector2(Room.Center.X, Room.Center.Y), 6);
         GenerateFloor();
@@ -680,6 +971,30 @@ public sealed class PrisacGame : Game
         ['S'] = ["111", "100", "111", "001", "111"],
         ['T'] = ["111", "010", "010", "010", "010"],
         ['U'] = ["101", "101", "101", "101", "111"],
+        ['X'] = ["101", "101", "010", "101", "101"],
         ['Y'] = ["101", "101", "010", "010", "010"],
+        ['А'] = ["01110", "10001", "11111", "10001", "10001"],
+        ['В'] = ["11110", "10001", "11110", "10001", "11110"],
+        ['Д'] = ["01110", "01010", "01010", "11111", "10001"],
+        ['Е'] = ["11111", "10000", "11110", "10000", "11111"],
+        ['Ж'] = ["10101", "10101", "01110", "10101", "10101"],
+        ['З'] = ["11110", "00001", "01110", "00001", "11110"],
+        ['И'] = ["10001", "10011", "10101", "11001", "10001"],
+        ['Й'] = ["01010", "00100", "10011", "10101", "11001"],
+        ['К'] = ["10001", "10010", "11100", "10010", "10001"],
+        ['Л'] = ["00111", "01001", "10001", "10001", "10001"],
+        ['М'] = ["10001", "11011", "10101", "10001", "10001"],
+        ['Н'] = ["10001", "10001", "11111", "10001", "10001"],
+        ['О'] = ["01110", "10001", "10001", "10001", "01110"],
+        ['П'] = ["11111", "10001", "10001", "10001", "10001"],
+        ['Р'] = ["11110", "10001", "11110", "10000", "10000"],
+        ['С'] = ["01111", "10000", "10000", "10000", "01111"],
+        ['Т'] = ["11111", "00100", "00100", "00100", "00100"],
+        ['Х'] = ["10001", "01010", "00100", "01010", "10001"],
+        ['Ш'] = ["10101", "10101", "10101", "10101", "11111"],
+        ['Ы'] = ["10001", "10001", "11101", "10011", "11101"],
+        ['Ь'] = ["10000", "10000", "11110", "10001", "11110"],
+        ['Э'] = ["11110", "00001", "01111", "00001", "11110"],
+        ['Ю'] = ["10010", "10101", "11101", "10101", "10010"],
     };
 }
