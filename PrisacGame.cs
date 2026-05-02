@@ -23,6 +23,7 @@ public sealed class PrisacGame : Game
     private SpriteBatch spriteBatch = null!;
     private Texture2D pixel = null!;
     private Texture2D flyTexture = null!;
+    private Texture2D playerTexture = null!;
     private Player player;
     private bool roomCleared;
 
@@ -47,6 +48,8 @@ public sealed class PrisacGame : Game
         pixel.SetData([Color.White]);
         using var flyStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Enemies", "fly.png"));
         flyTexture = Texture2D.FromStream(GraphicsDevice, flyStream);
+        using var playerStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Player", "cheuxan.png"));
+        playerTexture = Texture2D.FromStream(GraphicsDevice, playerStream);
         ResetRoom();
     }
 
@@ -246,15 +249,7 @@ public sealed class PrisacGame : Game
             FillCircle(bullet.Position, BulletRadius, new Color(207, 232, 243));
         }
 
-        var playerColor = new Color(242, 209, 179);
-        if (player.InvulnerableTimer > 0f && (int)(player.InvulnerableTimer * 16f) % 2 == 0)
-        {
-            playerColor = new Color(247, 242, 231);
-        }
-
-        FillCircle(player.Position, PlayerRadius, playerColor);
-        FillCircle(player.Position + new Vector2(-6, -4), 3, new Color(23, 17, 15));
-        FillCircle(player.Position + new Vector2(6, -4), 3, new Color(23, 17, 15));
+        DrawPlayer();
         DrawHud();
 
         if (player.Health <= 0)
@@ -307,6 +302,24 @@ public sealed class PrisacGame : Game
             (int)size);
 
         spriteBatch.Draw(flyTexture, destination, Color.White);
+    }
+
+    private void DrawPlayer()
+    {
+        var size = PlayerRadius * 2.8f;
+        var destination = new Rectangle(
+            (int)(player.Position.X - size / 2f),
+            (int)(player.Position.Y - size / 2f),
+            (int)size,
+            (int)size);
+
+        var tint = Color.White;
+        if (player.InvulnerableTimer > 0f && (int)(player.InvulnerableTimer * 16f) % 2 == 0)
+        {
+            tint = new Color(255, 255, 255, 120);
+        }
+
+        spriteBatch.Draw(playerTexture, destination, tint);
     }
 
     private void FillRect(RectangleF rect, Color color)
