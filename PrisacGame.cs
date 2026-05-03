@@ -11,6 +11,7 @@ public sealed class PrisacGame : Game
     private const int ScreenHeight = 1080;
     private const float PlayerRadius = 28f;
     private const float PlayerSpeed = 315f;
+    private const float CheatSpeedMultiplier = 3f;
     private const float BulletSpeed = 640f;
     private const float BulletRadius = 8f;
     private const float ShotEffectDuration = 0.13f;
@@ -742,7 +743,8 @@ private const int FloorRoomCount = 9;
 
         playerDirectionFrame = GetDirectionFrame(direction);
         direction.Normalize();
-        var nextPosition = player.Position + direction * PlayerSpeed * dt;
+        var speed = cheatMode ? PlayerSpeed * CheatSpeedMultiplier : PlayerSpeed;
+        var nextPosition = player.Position + direction * speed * dt;
 
         if (TryChangeRoom(nextPosition))
         {
