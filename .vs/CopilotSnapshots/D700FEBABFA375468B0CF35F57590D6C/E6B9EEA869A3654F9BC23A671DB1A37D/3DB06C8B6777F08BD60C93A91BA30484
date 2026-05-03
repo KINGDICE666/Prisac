@@ -1,4 +1,4 @@
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.IO;
@@ -14,7 +14,7 @@ public sealed class PrisacGame : Game
     private const float BulletSpeed = 640f;
     private const float BulletRadius = 8f;
     private const float ShotEffectDuration = 0.13f;
-private const float BaseShotCooldown = 1.0f;
+private const float BaseShotCooldown = 0.42f;
     private const float FireRateCooldownStep = 0.06f;
     private const float MinimumShotCooldown = 0.12f;
     private const float BaseBulletRange = 250f;
