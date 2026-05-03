@@ -1,4 +1,4 @@
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.IO;
@@ -14,7 +14,7 @@ public sealed class PrisacGame : Game
     private const float BulletSpeed = 640f;
     private const float BulletRadius = 8f;
     private const float ShotEffectDuration = 0.13f;
-private const float BaseShotCooldown = 1.0f;
+    private const float BaseShotCooldown = 0.62f;
     private const float FireRateCooldownStep = 0.06f;
     private const float MinimumShotCooldown = 0.12f;
     private const float BaseBulletRange = 250f;
@@ -23,7 +23,7 @@ private const float BaseShotCooldown = 1.0f;
     private const float EnemyAcceleration = 7.5f;
     private const float EnemySeparationRadius = 84f;
     private const float PlayerContactInvulnerability = 0.22f;
-private const int FloorRoomCount = 9;   
+    private const int FloorRoomCount = 5;
 
     private static readonly RectangleF Room = new(135, 100, 1650, 880);
     private static readonly Point Up = new(0, -1);
@@ -456,14 +456,14 @@ private const int FloorRoomCount = 9;
             return;
         }
 
-        var enemyCount = random.Next(6, 10);
+        var enemyCount = random.Next(2, 6);
 
         for (var index = 0; index < enemyCount; index++)
         {
             var point = spawnPoints[(index + random.Next(spawnPoints.Length)) % spawnPoints.Length];
             var type = ChooseEnemyType();
             var health = type == EnemyType.Spider ? 20 : 15;
-            var speed = type == EnemyType.Spider ? 210 : 230;
+            var speed = type == EnemyType.Spider ? random.Next(88, 112) : random.Next(62, 92);
             roomData.Enemies.Add(new Enemy(point, health, speed, type));
         }
     }
