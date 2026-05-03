@@ -71,6 +71,8 @@ private const int FloorRoomCount = 9;
     private Texture2D brokenMakarovTexture = null!;
     private SoundEffect? tearShotSound;
     private SoundEffect? enemyDeathSound;
+    private Rectangle[,] doorFrameSources = null!;
+    private Rectangle[,] itemDoorFrameSources = null!;
     private Player player;
     private int playerDirectionFrame;
     private Point currentRoomPosition;
@@ -114,6 +116,8 @@ private const int FloorRoomCount = 9;
         doorTexture = Texture2D.FromStream(GraphicsDevice, doorStream);
         using var itemDoorStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "item_door_arches.png"));
         itemDoorTexture = Texture2D.FromStream(GraphicsDevice, itemDoorStream);
+        doorFrameSources = BuildDoorFrameSources(doorTexture);
+        itemDoorFrameSources = BuildDoorFrameSources(itemDoorTexture);
         using var brokenMakarovStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Items", "broken_makarov.png"));
         brokenMakarovTexture = Texture2D.FromStream(GraphicsDevice, brokenMakarovStream);
         tearShotSound = TryLoadSoundEffect(Path.Combine(AppContext.BaseDirectory, "Content", "Sounds", "tear_shot.wav"));
@@ -1215,16 +1219,13 @@ private const int FloorRoomCount = 9;
 
     private void DrawDoors()
     {
-        const float doorSize = 96f;
-        const float halfDoor = doorSize / 2f;
-
-        DrawDoor(Up, new RectangleF(Room.Center.X - halfDoor, Room.Top - 87, doorSize, doorSize));
-        DrawDoor(Down, new RectangleF(Room.Center.X - halfDoor, Room.Bottom - 12, doorSize, doorSize));
-        DrawDoor(Left, new RectangleF(Room.Left - 87, Room.Center.Y - halfDoor, doorSize, doorSize));
-        DrawDoor(Right, new RectangleF(Room.Right - 12, Room.Center.Y - halfDoor, doorSize, doorSize));
+        DrawDoor(Up);
+        DrawDoor(Down);
+        DrawDoor(Left);
+        DrawDoor(Right);
     }
 
-    private void DrawDoor(Point direction, RectangleF bounds)
+    private void DrawDoor(Point direction)
     {
         if (!HasNeighbor(direction))
         {
@@ -1234,11 +1235,54 @@ private const int FloorRoomCount = 9;
         var directionFrame = GetDoorDirectionFrame(direction);
         var stateRow = currentRoom.Cleared ? 0 : 1;
         var texture = GetDoorTexture(direction);
+        var source = GetDoorSource(direction, stateRow, directionFrame);
+        var destination = GetDoorDestination(direction, source);
+
         spriteBatch.Draw(
             texture,
-            bounds.ToRectangle(),
-            new Rectangle(directionFrame * 128, stateRow * 128, 128, 128),
+            destination.ToRectangle(),
+            source,
             Color.White);
+    }
+
+    private Rectangle GetDoorSource(Point direction, int stateRow, int directionFrame)
+    {
+        var sources = GetDoorTexture(direction) == itemDoorTexture ? itemDoorFrameSources : doorFrameSources;
+        return sources[stateRow, directionFrame];
+    }
+
+    private static RectangleF GetDoorDestination(Point direction, Rectangle source)
+    {
+        const float doorLongSide = 96f;
+        const float doorInset = -35f;
+
+        var width = doorLongSide;
+        var height = doorLongSide;
+        if (direction == Up || direction == Down)
+        {
+            height = doorLongSide * source.Height / source.Width;
+        }
+        else
+        {
+            width = doorLongSide * source.Width / source.Height;
+        }
+
+        if (direction == Up)
+        {
+            return new RectangleF(Room.Center.X - width / 2f, Room.Top - height / 2f + doorInset, width, height);
+        }
+
+        if (direction == Down)
+        {
+            return new RectangleF(Room.Center.X - width / 2f, Room.Bottom - height / 2f - doorInset, width, height);
+        }
+
+        if (direction == Left)
+        {
+            return new RectangleF(Room.Left - width / 2f + doorInset, Room.Center.Y - height / 2f, width, height);
+        }
+
+        return new RectangleF(Room.Right - width / 2f - doorInset, Room.Center.Y - height / 2f, width, height);
     }
 
     private void DrawRoomItem()
@@ -1281,6 +1325,50 @@ private const int FloorRoomCount = 9;
         }
 
         return doorTexture;
+    }
+
+    private static Rectangle[,] BuildDoorFrameSources(Texture2D texture)
+    {
+        const int frameSize = 128;
+        var pixels = new Color[texture.Width * texture.Height];
+        texture.GetData(pixels);
+
+        var sources = new Rectangle[2, 4];
+        for (var row = 0; row < 2; row++)
+        {
+            for (var frame = 0; frame < 4; frame++)
+            {
+                var offsetX = frame * frameSize;
+                var offsetY = row * frameSize;
+                var minX = frameSize;
+                var minY = frameSize;
+                var maxX = -1;
+                var maxY = -1;
+
+                for (var y = 0; y < frameSize; y++)
+                {
+                    for (var x = 0; x < frameSize; x++)
+                    {
+                        var pixel = pixels[(offsetY + y) * texture.Width + offsetX + x];
+                        if (pixel.A <= 10)
+                        {
+                            continue;
+                        }
+
+                        minX = Math.Min(minX, x);
+                        minY = Math.Min(minY, y);
+                        maxX = Math.Max(maxX, x);
+                        maxY = Math.Max(maxY, y);
+                    }
+                }
+
+                sources[row, frame] = maxX < 0
+                    ? new Rectangle(offsetX, offsetY, frameSize, frameSize)
+                    : new Rectangle(offsetX + minX, offsetY + minY, maxX - minX + 1, maxY - minY + 1);
+            }
+        }
+
+        return sources;
     }
 
     private static int GetDoorDirectionFrame(Point direction)
