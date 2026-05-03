@@ -1,6 +1,8 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System.Globalization;
 using System.IO;
 
 public sealed class PrisacGame : Game
@@ -53,6 +55,7 @@ private const int FloorRoomCount = 9;
     private int selectedMenuItem;
     private int selectedSettingsItem;
     private int resolutionIndex = 2;
+    private int soundVolume = 70;
     private ScreenMode screenMode = ScreenMode.Fullscreen;
 
     private SpriteBatch spriteBatch = null!;
@@ -66,6 +69,8 @@ private const int FloorRoomCount = 9;
     private Texture2D doorTexture = null!;
     private Texture2D itemDoorTexture = null!;
     private Texture2D brokenMakarovTexture = null!;
+    private SoundEffect? tearShotSound;
+    private SoundEffect? enemyDeathSound;
     private Player player;
     private int playerDirectionFrame;
     private Point currentRoomPosition;
@@ -111,6 +116,8 @@ private const int FloorRoomCount = 9;
         itemDoorTexture = Texture2D.FromStream(GraphicsDevice, itemDoorStream);
         using var brokenMakarovStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Items", "broken_makarov.png"));
         brokenMakarovTexture = Texture2D.FromStream(GraphicsDevice, brokenMakarovStream);
+        tearShotSound = TryLoadSoundEffect(Path.Combine(AppContext.BaseDirectory, "Content", "Sounds", "tear_shot.wav"));
+        enemyDeathSound = TryLoadSoundEffect(Path.Combine(AppContext.BaseDirectory, "Content", "Sounds", "enemy_death.wav"));
 
         ResetFloor();
     }
@@ -281,7 +288,7 @@ private const int FloorRoomCount = 9;
 
         if (IsKeyPressed(keyboard, Keys.Enter) || IsKeyPressed(keyboard, Keys.Space) || clickedButton >= 0)
         {
-            if (selectedSettingsItem == 2)
+            if (selectedSettingsItem == 3)
             {
                 menuState = GameMenuState.Pause;
             }
@@ -303,6 +310,10 @@ private const int FloorRoomCount = 9;
         {
             resolutionIndex = Wrap(resolutionIndex + direction, Resolutions.Length);
             ApplyScreenSettings();
+        }
+        else if (selectedSettingsItem == 2)
+        {
+            soundVolume = Math.Clamp(soundVolume + direction * 10, 0, 100);
         }
     }
 
@@ -358,7 +369,8 @@ private const int FloorRoomCount = 9;
         var buttons = GetSettingsButtons();
         DrawButton(buttons[0], $"ЭКРАН: {GetScreenModeText()}", selectedSettingsItem == 0);
         DrawButton(buttons[1], $"РАЗРЕШЕНИЕ: {GetResolutionText()}", selectedSettingsItem == 1);
-        DrawButton(buttons[2], "НАЗАД", selectedSettingsItem == 2);
+        DrawButton(buttons[2], $"SFX: {soundVolume}", selectedSettingsItem == 2);
+        DrawButton(buttons[3], "НАЗАД", selectedSettingsItem == 3);
     }
 
     private void DrawButton(RectangleF rect, string text, bool selected)
@@ -381,9 +393,10 @@ private const int FloorRoomCount = 9;
 
     private RectangleF[] GetSettingsButtons() =>
     [
-        new(610, 390, 700, 90),
-        new(610, 530, 700, 90),
-        new(610, 740, 700, 90)
+        new(610, 360, 700, 80),
+        new(610, 470, 700, 80),
+        new(610, 580, 700, 80),
+        new(610, 740, 700, 80)
     ];
 
     private string GetScreenModeText() => screenMode switch
@@ -697,6 +710,7 @@ private const int FloorRoomCount = 9;
             if (enemy.Health <= 0)
             {
                 currentRoom.Enemies.RemoveAt(index);
+                PlayEnemyDeathSound();
                 continue;
             }
 
@@ -810,7 +824,41 @@ private const int FloorRoomCount = 9;
 
         bullets.Add(new Bullet(player.Position + direction * 40f, direction * BulletSpeed, player.Damage, GetBulletRange()));
         shotEffects.Add(new ShotEffect(player.Position + direction * 38f, direction, ShotEffectDuration));
+        PlayTearShotSound();
         player.ShotCooldown = GetShotCooldown();
+    }
+
+    private void PlayTearShotSound()
+    {
+        if (soundVolume <= 0 || tearShotSound is null)
+        {
+            return;
+        }
+
+        tearShotSound.Play(soundVolume / 100f, 0f, 0f);
+    }
+
+    private void PlayEnemyDeathSound()
+    {
+        if (soundVolume <= 0 || enemyDeathSound is null)
+        {
+            return;
+        }
+
+        enemyDeathSound.Play(soundVolume / 100f, 0f, 0f);
+    }
+
+    private static SoundEffect? TryLoadSoundEffect(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            return SoundEffect.FromStream(stream);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Vector2 GetShootDirection(KeyboardState keyboard)
@@ -881,6 +929,7 @@ private const int FloorRoomCount = 9;
                     if (enemy.Health <= 0)
                     {
                         currentRoom.Enemies.RemoveAt(enemyIndex);
+                        PlayEnemyDeathSound();
                     }
                     else
                     {
@@ -1281,7 +1330,9 @@ private const int FloorRoomCount = 9;
     private void DrawMiniMap()
     {
         const int cell = 22;
-        var origin = new Vector2(74, 246);
+        var minX = floorRooms.Keys.Min(position => position.X);
+        var minY = floorRooms.Keys.Min(position => position.Y);
+        var origin = new Vector2(74 - minX * (cell + 4), 300 - minY * (cell + 4));
 
         foreach (var roomData in floorRooms.Values)
         {
@@ -1299,7 +1350,7 @@ private const int FloorRoomCount = 9;
 
     private static string FormatStat(float value)
     {
-        return Math.Abs(value % 1f) < 0.01f ? ((int)value).ToString() : value.ToString("0.0");
+        return Math.Abs(value % 1f) < 0.01f ? ((int)value).ToString() : value.ToString("0.0", CultureInfo.InvariantCulture);
     }
 
     private static Color GetMiniMapRoomColor(RoomData roomData)
@@ -1475,6 +1526,7 @@ private const int FloorRoomCount = 9;
         ['7'] = ["111", "001", "010", "010", "010"],
         ['8'] = ["111", "101", "111", "101", "111"],
         ['9'] = ["111", "101", "111", "001", "111"],
+        ['.'] = ["0", "0", "0", "0", "1"],
         [':'] = ["0", "1", "0", "1", "0"],
         ['-'] = ["000", "000", "111", "000", "000"],
         ['/'] = ["001", "001", "010", "100", "100"],
