@@ -59,6 +59,8 @@ private const int FloorRoomCount = 9;
     private Texture2D playerTexture = null!;
     private Texture2D floorTexture = null!;
     private Texture2D boxTexture = null!;
+    private Texture2D wallTexture = null!;
+    private Texture2D doorTexture = null!;
     private Player player;
     private int playerDirectionFrame;
     private Point currentRoomPosition;
@@ -95,6 +97,10 @@ private const int FloorRoomCount = 9;
         floorTexture = Texture2D.FromStream(GraphicsDevice, floorStream);
         using var boxStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "box_wood.png"));
         boxTexture = Texture2D.FromStream(GraphicsDevice, boxStream);
+        using var wallStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "wall_dirt.png"));
+        wallTexture = Texture2D.FromStream(GraphicsDevice, wallStream);
+        using var doorStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "door_arches.png"));
+        doorTexture = Texture2D.FromStream(GraphicsDevice, doorStream);
 
         ResetFloor();
     }
@@ -909,7 +915,7 @@ private const int FloorRoomCount = 9;
 
     private void DrawGame()
     {
-        FillRect(new RectangleF(Room.X - 48, Room.Y - 48, Room.Width + 96, Room.Height + 96), new Color(51, 36, 31));
+        DrawTexturedWallBand();
         DrawTexturedFloor();
         DrawFloorTiles();
         DrawDoors();
@@ -1013,6 +1019,30 @@ private const int FloorRoomCount = 9;
         }
     }
 
+    private void DrawTexturedWallBand()
+    {
+        var wallBounds = new RectangleF(Room.X - 48, Room.Y - 48, Room.Width + 96, Room.Height + 96);
+        DrawTiledTexture(wallTexture, wallBounds, Color.White);
+    }
+
+    private void DrawTiledTexture(Texture2D texture, RectangleF bounds, Color tint)
+    {
+        var tileSize = 128;
+        for (var y = bounds.Top; y < bounds.Bottom; y += tileSize)
+        {
+            for (var x = bounds.Left; x < bounds.Right; x += tileSize)
+            {
+                var width = (int)MathF.Min(tileSize, bounds.Right - x);
+                var height = (int)MathF.Min(tileSize, bounds.Bottom - y);
+                spriteBatch.Draw(
+                    texture,
+                    new Rectangle((int)x, (int)y, width, height),
+                    new Rectangle(0, 0, width, height),
+                    tint);
+            }
+        }
+    }
+
     private void DrawTexturedBox(RectangleF box)
     {
         spriteBatch.Draw(boxTexture, box.ToRectangle(), Color.White);
@@ -1033,8 +1063,33 @@ private const int FloorRoomCount = 9;
             return;
         }
 
-        var doorColor = currentRoom.Cleared ? new Color(195, 146, 77) : new Color(42, 32, 28);
-        FillRect(bounds, doorColor);
+        var directionFrame = GetDoorDirectionFrame(direction);
+        var stateRow = currentRoom.Cleared ? 0 : 1;
+        spriteBatch.Draw(
+            doorTexture,
+            bounds.ToRectangle(),
+            new Rectangle(directionFrame * 128, stateRow * 128, 128, 128),
+            Color.White);
+    }
+
+    private static int GetDoorDirectionFrame(Point direction)
+    {
+        if (direction == Down)
+        {
+            return 0;
+        }
+
+        if (direction == Up)
+        {
+            return 1;
+        }
+
+        if (direction == Right)
+        {
+            return 2;
+        }
+
+        return 3;
     }
 
     private void DrawHud()

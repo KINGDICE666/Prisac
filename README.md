@@ -1,6 +1,6 @@
 # Prisac
 
-Минимальная база для 2D roguelike в духе The Binding of Isaac на C# и MonoGame.
+2D roguelike на C# и MonoGame.
 
 ## Сборка
 
