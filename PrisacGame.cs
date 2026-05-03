@@ -149,6 +149,10 @@ private const int FloorRoomCount = 9;
         if (IsKeyPressed(keyboard, Keys.L))
         {
             cheatMode = !cheatMode;
+            if (cheatMode)
+            {
+                KillAllEnemiesInCurrentRoom();
+            }
         }
 
         if (player.Health <= 0)
@@ -168,7 +172,14 @@ private const int FloorRoomCount = 9;
         Shoot(keyboard);
         UpdateBullets(dt);
         UpdateShotEffects(dt);
-        UpdateEnemies(dt);
+        if (cheatMode)
+        {
+            KillAllEnemiesInCurrentRoom();
+        }
+        else
+        {
+            UpdateEnemies(dt);
+        }
 
         if (currentRoom.Enemies.Count == 0)
         {
@@ -697,25 +708,19 @@ private const int FloorRoomCount = 9;
 
         if (cheatMode)
         {
-            DamageAllEnemiesInCurrentRoom(100);
+            KillAllEnemiesInCurrentRoom();
         }
     }
 
-    private void DamageAllEnemiesInCurrentRoom(int damage)
+    private void KillAllEnemiesInCurrentRoom()
     {
-        for (var index = currentRoom.Enemies.Count - 1; index >= 0; index--)
+        if (currentRoom.Enemies.Count == 0)
         {
-            var enemy = currentRoom.Enemies[index];
-            enemy.Health -= damage;
-            if (enemy.Health <= 0)
-            {
-                currentRoom.Enemies.RemoveAt(index);
-                PlayEnemyDeathSound();
-                continue;
-            }
-
-            currentRoom.Enemies[index] = enemy;
+            return;
         }
+
+        currentRoom.Enemies.Clear();
+        PlayEnemyDeathSound();
     }
 
     private void UpdateItemPickup()
@@ -1210,10 +1215,13 @@ private const int FloorRoomCount = 9;
 
     private void DrawDoors()
     {
-        DrawDoor(Up, new RectangleF(Room.Center.X - 72, Room.Top - 48, 144, 52));
-        DrawDoor(Down, new RectangleF(Room.Center.X - 72, Room.Bottom - 4, 144, 52));
-        DrawDoor(Left, new RectangleF(Room.Left - 48, Room.Center.Y - 72, 52, 144));
-        DrawDoor(Right, new RectangleF(Room.Right - 4, Room.Center.Y - 72, 52, 144));
+        const float doorSize = 96f;
+        const float halfDoor = doorSize / 2f;
+
+        DrawDoor(Up, new RectangleF(Room.Center.X - halfDoor, Room.Top - 87, doorSize, doorSize));
+        DrawDoor(Down, new RectangleF(Room.Center.X - halfDoor, Room.Bottom - 12, doorSize, doorSize));
+        DrawDoor(Left, new RectangleF(Room.Left - 87, Room.Center.Y - halfDoor, doorSize, doorSize));
+        DrawDoor(Right, new RectangleF(Room.Right - 12, Room.Center.Y - halfDoor, doorSize, doorSize));
     }
 
     private void DrawDoor(Point direction, RectangleF bounds)
@@ -1536,6 +1544,7 @@ private const int FloorRoomCount = 9;
         ['E'] = ["111", "100", "111", "100", "111"],
         ['F'] = ["111", "100", "111", "100", "100"],
         ['G'] = ["111", "100", "101", "101", "111"],
+        ['H'] = ["101", "101", "111", "101", "101"],
         ['I'] = ["111", "010", "010", "010", "111"],
         ['L'] = ["100", "100", "100", "100", "111"],
         ['M'] = ["101", "111", "111", "101", "101"],
