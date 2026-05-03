@@ -1,4 +1,4 @@
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.IO;
@@ -456,14 +456,14 @@ private const int FloorRoomCount = 9;
             return;
         }
 
-        var enemyCount = random.Next(6, 10);
+        var enemyCount = random.Next(4, 10);
 
         for (var index = 0; index < enemyCount; index++)
         {
             var point = spawnPoints[(index + random.Next(spawnPoints.Length)) % spawnPoints.Length];
             var type = ChooseEnemyType();
             var health = type == EnemyType.Spider ? 20 : 15;
-            var speed = type == EnemyType.Spider ? 210 : 230;
+            var speed = type == EnemyType.Spider ? random.Next(148, 172) : random.Next(122, 152);
             roomData.Enemies.Add(new Enemy(point, health, speed, type));
         }
     }
