@@ -8,7 +8,7 @@ public struct Player
         Health = health;
         InvulnerableTimer = 0f;
         ShotCooldown = 0f;
-        Damage = 5;
+        Damage = 5f;
         FireRate = 5;
         Range = 5;
     }
@@ -17,14 +17,14 @@ public struct Player
     public int Health;
     public float InvulnerableTimer;
     public float ShotCooldown;
-    public int Damage;
+    public float Damage;
     public int FireRate;
     public int Range;
 }
 
 public struct Bullet
 {
-    public Bullet(Vector2 position, Vector2 velocity, int damage, float maxDistance)
+    public Bullet(Vector2 position, Vector2 velocity, float damage, float maxDistance)
     {
         Position = position;
         Velocity = velocity;
@@ -35,7 +35,7 @@ public struct Bullet
 
     public Vector2 Position;
     public Vector2 Velocity;
-    public int Damage;
+    public float Damage;
     public float MaxDistance;
     public float DistanceTravelled;
 }
@@ -56,7 +56,7 @@ public struct ShotEffect
 
 public struct Enemy
 {
-    public Enemy(Vector2 position, int health, float speed, EnemyType type = EnemyType.Fly)
+    public Enemy(Vector2 position, float health, float speed, EnemyType type = EnemyType.Fly)
     {
         Position = position;
         Health = health;
@@ -66,7 +66,7 @@ public struct Enemy
     }
 
     public Vector2 Position;
-    public int Health;
+    public float Health;
     public float Speed;
     public Vector2 Velocity;
     public EnemyType Type;
@@ -76,6 +76,29 @@ public enum EnemyType
 {
     Fly,
     Spider
+}
+
+public enum RoomType
+{
+    Normal,
+    Item
+}
+
+public enum ItemType
+{
+    BrokenMakarov
+}
+
+public struct RoomItem
+{
+    public RoomItem(ItemType type, Vector2 position)
+    {
+        Type = type;
+        Position = position;
+    }
+
+    public ItemType Type;
+    public Vector2 Position;
 }
 
 public sealed class RoomData
@@ -88,6 +111,8 @@ public sealed class RoomData
 
     public Point GridPosition { get; }
     public int TemplateId { get; }
+    public RoomType Type { get; set; } = RoomType.Normal;
+    public RoomItem? Item { get; set; }
     public List<RectangleF> Rocks { get; } = [];
     public List<Enemy> Enemies { get; } = [];
     public bool Cleared { get; set; }
