@@ -23,6 +23,7 @@ private const float BaseShotCooldown = 1.0f;
     private const float EnemyAcceleration = 7.5f;
     private const float EnemySeparationRadius = 84f;
     private const float PlayerContactInvulnerability = 0.22f;
+    private const float ItemPickupRadius = 58f;
 private const int FloorRoomCount = 9;   
 
     private static readonly RectangleF Room = new(135, 100, 1650, 880);
@@ -31,6 +32,7 @@ private const int FloorRoomCount = 9;
     private static readonly Point Left = new(-1, 0);
     private static readonly Point Right = new(1, 0);
     private static readonly Point[] Directions = [Up, Down, Left, Right];
+    private static readonly ItemType[] ItemPool = [ItemType.BrokenMakarov];
     private static readonly Point[] Resolutions =
     [
         new(1280, 720),
@@ -61,10 +63,13 @@ private const int FloorRoomCount = 9;
     private Texture2D boxTexture = null!;
     private Texture2D wallTexture = null!;
     private Texture2D doorTexture = null!;
+    private Texture2D itemDoorTexture = null!;
+    private Texture2D brokenMakarovTexture = null!;
     private Player player;
     private int playerDirectionFrame;
     private Point currentRoomPosition;
     private RoomData currentRoom = null!;
+    private bool cheatMode;
 
     public PrisacGame()
     {
@@ -101,6 +106,10 @@ private const int FloorRoomCount = 9;
         wallTexture = Texture2D.FromStream(GraphicsDevice, wallStream);
         using var doorStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "door_arches.png"));
         doorTexture = Texture2D.FromStream(GraphicsDevice, doorStream);
+        using var itemDoorStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Environment", "item_door_arches.png"));
+        itemDoorTexture = Texture2D.FromStream(GraphicsDevice, itemDoorStream);
+        using var brokenMakarovStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Sprites", "Items", "broken_makarov.png"));
+        brokenMakarovTexture = Texture2D.FromStream(GraphicsDevice, brokenMakarovStream);
 
         ResetFloor();
     }
@@ -129,6 +138,11 @@ private const int FloorRoomCount = 9;
             ResetFloor();
         }
 
+        if (IsKeyPressed(keyboard, Keys.L))
+        {
+            cheatMode = !cheatMode;
+        }
+
         if (player.Health <= 0)
         {
             previousKeyboard = keyboard;
@@ -142,6 +156,7 @@ private const int FloorRoomCount = 9;
         player.ShotCooldown = MathF.Max(player.ShotCooldown - dt, 0f);
 
         MovePlayer(keyboard, dt);
+        UpdateItemPickup();
         Shoot(keyboard);
         UpdateBullets(dt);
         UpdateShotEffects(dt);
@@ -438,6 +453,8 @@ private const int FloorRoomCount = 9;
             frontier.Add(next);
         }
 
+        MarkItemRoom(start);
+
         foreach (var roomData in floorRooms.Values)
         {
             FillRoom(roomData);
@@ -447,10 +464,50 @@ private const int FloorRoomCount = 9;
         floorRooms[start].Enemies.Clear();
     }
 
+    private void MarkItemRoom(Point start)
+    {
+        var candidates = floorRooms.Values
+            .Where(room => room.GridPosition != start)
+            .OrderByDescending(room => CountRoomNeighbors(room.GridPosition) == 1)
+            .ThenByDescending(room => Math.Abs(room.GridPosition.X - start.X) + Math.Abs(room.GridPosition.Y - start.Y))
+            .ToArray();
+
+        if (candidates.Length == 0)
+        {
+            return;
+        }
+
+        candidates[0].Type = RoomType.Item;
+        candidates[0].Cleared = true;
+    }
+
+    private int CountRoomNeighbors(Point roomPosition)
+    {
+        var count = 0;
+        foreach (var direction in Directions)
+        {
+            if (floorRooms.ContainsKey(Add(roomPosition, direction)))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private void FillRoom(RoomData roomData)
     {
         roomData.Rocks.Clear();
         roomData.Enemies.Clear();
+
+        if (roomData.Type == RoomType.Item)
+        {
+            roomData.Item = new RoomItem(PickItemForRoom(), new Vector2(Room.Center.X, Room.Center.Y));
+            roomData.Cleared = true;
+            return;
+        }
+
+        roomData.Item = null;
 
         var offset = Math.Abs(roomData.GridPosition.X * 37 + roomData.GridPosition.Y * 53 + roomData.TemplateId * 29);
         var template = roomData.TemplateId;
@@ -611,6 +668,11 @@ private const int FloorRoomCount = 9;
         return random.NextDouble() < 0.35 ? EnemyType.Spider : EnemyType.Fly;
     }
 
+    private ItemType PickItemForRoom()
+    {
+        return ItemPool[random.Next(ItemPool.Length)];
+    }
+
     private void EnterRoom(Point roomPosition, Vector2 playerPosition)
     {
         currentRoomPosition = roomPosition;
@@ -618,6 +680,51 @@ private const int FloorRoomCount = 9;
         player.Position = playerPosition;
         bullets.Clear();
         shotEffects.Clear();
+
+        if (cheatMode)
+        {
+            DamageAllEnemiesInCurrentRoom(100);
+        }
+    }
+
+    private void DamageAllEnemiesInCurrentRoom(int damage)
+    {
+        for (var index = currentRoom.Enemies.Count - 1; index >= 0; index--)
+        {
+            var enemy = currentRoom.Enemies[index];
+            enemy.Health -= damage;
+            if (enemy.Health <= 0)
+            {
+                currentRoom.Enemies.RemoveAt(index);
+                continue;
+            }
+
+            currentRoom.Enemies[index] = enemy;
+        }
+    }
+
+    private void UpdateItemPickup()
+    {
+        if (currentRoom.Item is not { } item)
+        {
+            return;
+        }
+
+        if (Vector2.DistanceSquared(player.Position, item.Position) > Square(PlayerRadius + ItemPickupRadius))
+        {
+            return;
+        }
+
+        ApplyItem(item.Type);
+        currentRoom.Item = null;
+    }
+
+    private void ApplyItem(ItemType itemType)
+    {
+        if (itemType == ItemType.BrokenMakarov)
+        {
+            player.Damage += 2.5f;
+        }
     }
 
     private void MovePlayer(KeyboardState keyboard, float dt)
@@ -930,7 +1037,9 @@ private const int FloorRoomCount = 9;
             DrawEnemy(enemy);
         }
 
+        DrawRoomItem();
         DrawShotEffects();
+
 
         foreach (var bullet in bullets)
         {
@@ -1065,11 +1174,54 @@ private const int FloorRoomCount = 9;
 
         var directionFrame = GetDoorDirectionFrame(direction);
         var stateRow = currentRoom.Cleared ? 0 : 1;
+        var texture = GetDoorTexture(direction);
         spriteBatch.Draw(
-            doorTexture,
+            texture,
             bounds.ToRectangle(),
             new Rectangle(directionFrame * 128, stateRow * 128, 128, 128),
             Color.White);
+    }
+
+    private void DrawRoomItem()
+    {
+        if (currentRoom.Item is not { } item)
+        {
+            return;
+        }
+
+        var texture = GetItemTexture(item.Type);
+        var width = 92;
+        var height = 64;
+        var destination = new Rectangle(
+            (int)(item.Position.X - width / 2f),
+            (int)(item.Position.Y - height / 2f),
+            width,
+            height);
+
+        FillCircle(item.Position + new Vector2(0, 24), 38f, new Color(16, 12, 10, 115));
+        spriteBatch.Draw(texture, destination, Color.White);
+    }
+
+    private Texture2D GetItemTexture(ItemType itemType)
+    {
+        if (itemType == ItemType.BrokenMakarov)
+        {
+            return brokenMakarovTexture;
+        }
+
+        return brokenMakarovTexture;
+    }
+
+    private Texture2D GetDoorTexture(Point direction)
+    {
+        var neighborPosition = Add(currentRoomPosition, direction);
+        if (floorRooms.TryGetValue(neighborPosition, out var neighbor) &&
+            (currentRoom.Type == RoomType.Item || neighbor.Type == RoomType.Item))
+        {
+            return itemDoorTexture;
+        }
+
+        return doorTexture;
     }
 
     private static int GetDoorDirectionFrame(Point direction)
@@ -1103,9 +1255,14 @@ private const int FloorRoomCount = 9;
         var clearedCount = floorRooms.Values.Count(room => room.Cleared);
         var status = currentRoom.Cleared ? $"ROOM {clearedCount}/{FloorRoomCount}" : $"ENEMIES: {currentRoom.Enemies.Count}";
         DrawBlockText(status, new Vector2(1470, 38), 4, new Color(241, 228, 208));
-        DrawBlockText($"DMG:{player.Damage}", new Vector2(72, 132), 3, new Color(241, 228, 208));
+        DrawBlockText($"DMG:{FormatStat(player.Damage)}", new Vector2(72, 132), 3, new Color(241, 228, 208));
         DrawBlockText($"FIR:{player.FireRate}", new Vector2(72, 162), 3, new Color(241, 228, 208));
         DrawBlockText($"RNG:{player.Range}", new Vector2(72, 192), 3, new Color(241, 228, 208));
+        if (cheatMode)
+        {
+            DrawBlockText("CHEAT", new Vector2(72, 222), 3, new Color(245, 219, 95));
+        }
+
         DrawMiniMap();
     }
 
@@ -1128,14 +1285,29 @@ private const int FloorRoomCount = 9;
         {
             var x = origin.X + roomData.GridPosition.X * (cell + 4);
             var y = origin.Y + roomData.GridPosition.Y * (cell + 4);
-            var color = roomData.Cleared ? new Color(195, 146, 77) : new Color(74, 62, 58);
+            var color = GetMiniMapRoomColor(roomData);
             if (roomData.GridPosition == currentRoomPosition)
             {
-                color = new Color(207, 232, 243);
+                color = roomData.Type == RoomType.Item ? new Color(245, 219, 95) : new Color(207, 232, 243);
             }
 
             FillRect(new RectangleF(x, y, cell, cell), color);
         }
+    }
+
+    private static string FormatStat(float value)
+    {
+        return Math.Abs(value % 1f) < 0.01f ? ((int)value).ToString() : value.ToString("0.0");
+    }
+
+    private static Color GetMiniMapRoomColor(RoomData roomData)
+    {
+        if (roomData.Type == RoomType.Item)
+        {
+            return new Color(213, 172, 64);
+        }
+
+        return roomData.Cleared ? new Color(195, 146, 77) : new Color(74, 62, 58);
     }
 
     private void DrawEnemy(Enemy enemy)
